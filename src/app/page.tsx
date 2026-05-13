@@ -1,4 +1,17 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
+
 export default function Home() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && user) router.replace("/dashboard");
+  }, [user, loading, router]);
+
   return (
     <div className="flex flex-1 flex-col items-center justify-center bg-gray-50 min-h-screen px-4">
       <div className="max-w-xl w-full text-center">
