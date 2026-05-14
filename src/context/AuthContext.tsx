@@ -18,9 +18,16 @@ import {
   updateProfile,
 } from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase";
+import {
+  getUserDoc,
+  createUserDoc,
+  createHousehold,
+} from "@/lib/firestore";
+import type { UserDoc } from "@/types";
 
 interface AuthContextValue {
   user: User | null;
+  userDoc: UserDoc | null;
   loading: boolean;
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
@@ -31,13 +38,34 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+async function ensureUserDoc(user: User): Promise<UserDoc> {
+  const existing = await getUserDoc(user.uid);
+  if (existing) return existing;
+  // First time signing in with Google — create user doc + household
+  const householdId = await createHousehold(user.uid, "My Household");
+  await createUserDoc(
+    user.uid,
+    user.email ?? "",
+    user.displayName ?? "",
+    householdId
+  );
+  return (await getUserDoc(user.uid))!;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [userDoc, setUserDoc] = useState<UserDoc | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
+      if (firebaseUser) {
+        const doc = await getUserDoc(firebaseUser.uid);
+        setUserDoc(doc);
+      } else {
+        setUserDoc(null);
+      }
       setLoading(false);
     });
     return unsubscribe;
@@ -46,6 +74,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signUp(email: string, password: string, displayName: string) {
     const credential = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(credential.user, { displayName });
+    const householdId = await createHousehold(credential.user.uid, "My Household");
+    await createUserDoc(credential.user.uid, email, displayName, householdId);
+    const doc = await getUserDoc(credential.user.uid);
+    setUserDoc(doc);
   }
 
   async function signIn(email: string, password: string) {
@@ -53,11 +85,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signInWithGoogle() {
-    await signInWithPopup(auth, googleProvider);
+    const credential = await signInWithPopup(auth, googleProvider);
+    const doc = await ensureUserDoc(credential.user);
+    setUserDoc(doc);
   }
 
   async function signOut() {
     await firebaseSignOut(auth);
+    setUserDoc(null);
   }
 
   async function resetPassword(email: string) {
@@ -66,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, signUp, signIn, signInWithGoogle, signOut, resetPassword }}
+      value={{ user, userDoc, loading, signUp, signIn, signInWithGoogle, signOut, resetPassword }}
     >
       {children}
     </AuthContext.Provider>
