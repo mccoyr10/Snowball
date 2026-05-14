@@ -61,7 +61,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
-        const doc = await getUserDoc(firebaseUser.uid);
+        // ensureUserDoc handles both returning users (load existing doc)
+        // and users who registered before Firestore was set up (auto-provision)
+        const doc = await ensureUserDoc(firebaseUser);
         setUserDoc(doc);
       } else {
         setUserDoc(null);

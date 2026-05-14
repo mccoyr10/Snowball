@@ -24,7 +24,11 @@ function MigrateContent() {
   }, []);
 
   async function handleMigrate() {
-    if (!userDoc?.householdId || !legacy) return;
+    if (!legacy) return;
+    if (!userDoc?.householdId) {
+      setError("Your account isn't fully set up yet. Please sign out and sign back in, then try again.");
+      return;
+    }
     setMigrating(true);
     setError("");
     try {
@@ -32,7 +36,7 @@ function MigrateContent() {
       setDone(true);
     } catch (e) {
       console.error(e);
-      setError("Migration failed. Check that Firestore security rules allow reads on the snowball collection.");
+      setError("Migration failed — check the browser console for details and verify your Firestore security rules are published.");
     } finally {
       setMigrating(false);
     }
