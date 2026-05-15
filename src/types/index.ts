@@ -12,6 +12,7 @@ export interface Household {
   name: string;
   ownerId: string;
   memberIds: string[];
+  inviteCode?: string;
   createdAt: Timestamp;
 }
 

@@ -25,6 +25,7 @@ import PayoffSchedule from "@/components/snowball/PayoffSchedule";
 import ActualPayments from "@/components/snowball/ActualPayments";
 import ChatPanel from "@/components/snowball/ChatPanel";
 import OnboardingModal, { shouldShowOnboarding } from "@/components/snowball/OnboardingModal";
+import HouseholdModal from "@/components/snowball/HouseholdModal";
 
 // Map Firestore Debt shape → UI shape
 function toUIDebt(d: Debt): UIDebt {
@@ -52,6 +53,7 @@ export default function SnowballApp() {
   const [editingDebt, setEditingDebt] = useState<UIDebt | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showHousehold, setShowHousehold] = useState(false);
 
   const [settings, setSettingsLocal] = useState<UISettings>({
     monthlyBudget: 0,
@@ -217,6 +219,7 @@ export default function SnowballApp() {
         saveStatus={saveStatus}
         displayName={displayName}
         onSignOut={signOut}
+        onOpenHousehold={() => setShowHousehold(true)}
       />
 
       <main className="max-w-5xl mx-auto px-4 py-6 pb-24 sm:pb-6">
@@ -237,6 +240,10 @@ export default function SnowballApp() {
 
       {showOnboarding && (
         <OnboardingModal onComplete={() => setShowOnboarding(false)} />
+      )}
+
+      {showHousehold && (
+        <HouseholdModal onClose={() => setShowHousehold(false)} />
       )}
     </div>
   );

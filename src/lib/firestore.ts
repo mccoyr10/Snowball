@@ -5,6 +5,7 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  arrayUnion,
   collection,
   onSnapshot,
   serverTimestamp,
@@ -151,6 +152,39 @@ export async function deleteActual(
   debtId: string
 ): Promise<void> {
   await deleteDoc(doc(db, "households", householdId, "actuals", `${month}_${debtId}`));
+}
+
+// ─── Household invite / join ──────────────────────────────────────────────────
+
+function randomInviteCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no O/0/I/1 to avoid confusion
+  let code = "";
+  for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+export async function generateInviteCode(householdId: string, uid: string): Promise<string> {
+  const code = randomInviteCode();
+  await setDoc(doc(db, "inviteCodes", code), {
+    householdId,
+    createdBy: uid,
+    createdAt: serverTimestamp(),
+  });
+  await updateDoc(doc(db, "households", householdId), { inviteCode: code });
+  return code;
+}
+
+export async function lookupInviteCode(code: string): Promise<{ householdId: string } | null> {
+  const snap = await getDoc(doc(db, "inviteCodes", code.trim().toUpperCase()));
+  if (!snap.exists()) return null;
+  return { householdId: snap.data().householdId as string };
+}
+
+export async function joinHousehold(uid: string, householdId: string): Promise<void> {
+  await updateDoc(doc(db, "households", householdId), {
+    memberIds: arrayUnion(uid),
+  });
+  await updateDoc(doc(db, "users", uid), { householdId });
 }
 
 // ─── Legacy migration ─────────────────────────────────────────────────────────

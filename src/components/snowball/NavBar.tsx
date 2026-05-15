@@ -6,9 +6,10 @@ interface NavBarProps {
   saveStatus: string;
   displayName: string;
   onSignOut: () => void;
+  onOpenHousehold: () => void;
 }
 
-export default function NavBar({ activeTab, setActiveTab, saveStatus, displayName, onSignOut }: NavBarProps) {
+export default function NavBar({ activeTab, setActiveTab, saveStatus, displayName, onSignOut, onOpenHousehold }: NavBarProps) {
   const tabs = [
     {
       id: "dashboard", label: "Dashboard",
@@ -55,7 +56,9 @@ export default function NavBar({ activeTab, setActiveTab, saveStatus, displayNam
                 {statusLabels[saveStatus] || ""}
               </span>
             )}
-            <span className="text-sm text-gray-500">{displayName}</span>
+            <button onClick={onOpenHousehold} className="text-sm text-gray-500 hover:text-blue-600 transition-colors">
+              {displayName}
+            </button>
             <button onClick={onSignOut} className="text-xs text-gray-400 hover:text-gray-700 transition-colors">
               Sign out
             </button>
@@ -77,6 +80,11 @@ export default function NavBar({ activeTab, setActiveTab, saveStatus, displayNam
               <span className="text-[10px] font-medium mt-0.5">{t.label}</span>
             </button>
           ))}
+          <button onClick={onOpenHousehold}
+            className="flex-1 flex flex-col items-center justify-center py-2 min-h-[56px] transition-colors text-gray-400 hover:text-blue-600">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span className="text-[10px] font-medium mt-0.5">Account</span>
+          </button>
         </div>
       </nav>
     </>
