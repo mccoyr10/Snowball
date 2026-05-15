@@ -24,6 +24,7 @@ import DebtList from "@/components/snowball/DebtList";
 import PayoffSchedule from "@/components/snowball/PayoffSchedule";
 import ActualPayments from "@/components/snowball/ActualPayments";
 import ChatPanel from "@/components/snowball/ChatPanel";
+import OnboardingModal, { shouldShowOnboarding } from "@/components/snowball/OnboardingModal";
 
 // Map Firestore Debt shape → UI shape
 function toUIDebt(d: Debt): UIDebt {
@@ -50,6 +51,7 @@ export default function SnowballApp() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingDebt, setEditingDebt] = useState<UIDebt | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const [settings, setSettingsLocal] = useState<UISettings>({
     monthlyBudget: 0,
@@ -102,6 +104,15 @@ export default function SnowballApp() {
       return next;
     });
   }
+
+  const loading = debtsLoading || strategyLoading || actualsLoading;
+
+  // Show onboarding once for new users who have no debts yet
+  useEffect(() => {
+    if (!loading && firestoreDebts.length === 0 && shouldShowOnboarding()) {
+      setShowOnboarding(true);
+    }
+  }, [loading, firestoreDebts.length]);
 
   const debts = firestoreDebts.map(toUIDebt);
   const { adjustedDebts } = computeActualAdjustedDebts(debts, [], actuals);
@@ -159,7 +170,6 @@ export default function SnowballApp() {
     }
   }
 
-  const loading = debtsLoading || strategyLoading || actualsLoading;
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -174,7 +184,7 @@ export default function SnowballApp() {
   const displayName = userDoc?.displayName || user?.email || "";
 
   const tabs: Record<string, React.ReactNode> = {
-    dashboard: <DashboardTab debts={adjustedDebts} summary={summary} schedule={schedule} setActiveTab={setActiveTab} />,
+    dashboard: <DashboardTab debts={adjustedDebts} settings={settings} summary={summary} schedule={schedule} setActiveTab={setActiveTab} />,
     debts: (
       <DebtList
         debts={debts}
@@ -224,6 +234,10 @@ export default function SnowballApp() {
           onClose={() => { setModalOpen(false); setEditingDebt(null); }}
         />
       </Modal>
+
+      {showOnboarding && (
+        <OnboardingModal onComplete={() => setShowOnboarding(false)} />
+      )}
     </div>
   );
 }

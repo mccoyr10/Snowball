@@ -1,6 +1,7 @@
 "use client";
 
-import { formatCurrency, formatMonth, type UIDebt, type Summary, type ScheduleEntry } from "@/lib/snowball";
+import { formatCurrency, formatMonth, type UIDebt, type UISettings, type Summary, type ScheduleEntry } from "@/lib/snowball";
+import WhatIfPlanner from "@/components/snowball/WhatIfPlanner";
 
 function SummaryCard({ label, value, sub, color }: { label: string; value: string; sub?: string | null; color?: string }) {
   return (
@@ -14,12 +15,13 @@ function SummaryCard({ label, value, sub, color }: { label: string; value: strin
 
 interface DashboardTabProps {
   debts: UIDebt[];
+  settings: UISettings;
   summary: Summary;
   schedule: ScheduleEntry[];
   setActiveTab: (tab: string) => void;
 }
 
-export default function DashboardTab({ debts, summary, schedule, setActiveTab }: DashboardTabProps) {
+export default function DashboardTab({ debts, settings, summary, schedule, setActiveTab }: DashboardTabProps) {
   if (debts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -53,6 +55,8 @@ export default function DashboardTab({ debts, summary, schedule, setActiveTab }:
           </div>
         </div>
       )}
+
+      <WhatIfPlanner debts={debts} settings={settings} summary={summary} schedule={schedule} />
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
