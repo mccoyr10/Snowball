@@ -56,7 +56,11 @@ export default function NavBar({ activeTab, setActiveTab, saveStatus, displayNam
                 {statusLabels[saveStatus] || ""}
               </span>
             )}
-            <button onClick={onOpenHousehold} className="text-sm text-gray-500 hover:text-blue-600 transition-colors">
+            <button
+              onClick={onOpenHousehold}
+              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-blue-600 transition-colors border border-gray-200 hover:border-blue-300 rounded-lg px-3 py-1.5"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               {displayName}
             </button>
             <button onClick={onSignOut} className="text-xs text-gray-400 hover:text-gray-700 transition-colors">
