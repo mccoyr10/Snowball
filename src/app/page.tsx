@@ -12,6 +12,14 @@ export default function Home() {
     if (!loading && user) router.replace("/dashboard");
   }, [user, loading, router]);
 
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-700 border-t-transparent" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-1 flex-col items-center justify-center bg-gray-50 min-h-screen px-4">
       <div className="max-w-xl w-full text-center">

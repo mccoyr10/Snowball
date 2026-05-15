@@ -35,6 +35,14 @@ export default function LoginPage() {
     if (!loading && user) router.replace("/dashboard");
   }, [user, loading, router]);
 
+  if (loading || user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-700 border-t-transparent" />
+      </div>
+    );
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
