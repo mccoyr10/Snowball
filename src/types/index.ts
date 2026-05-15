@@ -1,10 +1,15 @@
 import { Timestamp } from "firebase/firestore";
 
+export type SubscriptionStatus = "trialing" | "active" | "past_due" | "canceled";
+
 export interface UserDoc {
   email: string;
   displayName: string;
   householdId: string;
   createdAt: Timestamp;
+  subscriptionStatus?: SubscriptionStatus;
+  trialStartedAt?: Timestamp;
+  stripeCustomerId?: string;
 }
 
 export interface Household {

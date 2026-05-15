@@ -74,6 +74,20 @@ export default function DashboardTab({ debts, settings, summary, schedule, setAc
                   <div className="flex-1 min-w-0">
                     <p className="text-base font-semibold text-gray-800 truncate">{d.name}</p>
                     <p className="text-sm text-gray-400 mt-0.5">{d.apr}% APR · Min {formatCurrency(d.minPayment)}/mo</p>
+                    {d.startingBalance && d.startingBalance > 0 && (() => {
+                      const pct = Math.max(0, Math.min(100, ((d.startingBalance - d.balance) / d.startingBalance) * 100));
+                      return (
+                        <div className="mt-2">
+                          <div className="flex justify-between text-xs text-gray-400 mb-1">
+                            <span>{Math.round(pct)}% paid off</span>
+                            <span>{formatCurrency(d.balance)} left</span>
+                          </div>
+                          <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all ${isTarget ? "bg-blue-500" : "bg-gray-400"}`} style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div className="hidden sm:block text-right flex-shrink-0">
                     <p className="text-base font-bold text-gray-800">{formatCurrency(d.balance)}</p>

@@ -32,8 +32,20 @@ export async function createUserDoc(
     email,
     displayName,
     householdId,
+    subscriptionStatus: "trialing",
+    trialStartedAt: serverTimestamp(),
     createdAt: serverTimestamp(),
   });
+}
+
+export async function setSubscriptionStatus(
+  uid: string,
+  status: import("@/types").SubscriptionStatus,
+  stripeCustomerId?: string
+): Promise<void> {
+  const data: Record<string, unknown> = { subscriptionStatus: status };
+  if (stripeCustomerId) data.stripeCustomerId = stripeCustomerId;
+  await updateDoc(doc(db, "users", uid), data);
 }
 
 // ─── Households ───────────────────────────────────────────────────────────────
@@ -175,7 +187,9 @@ export async function generateInviteCode(householdId: string, uid: string): Prom
 }
 
 export async function lookupInviteCode(code: string): Promise<{ householdId: string } | null> {
-  const snap = await getDoc(doc(db, "inviteCodes", code.trim().toUpperCase()));
+  const normalized = code.trim().toUpperCase();
+  if (normalized.length !== 8 || !/^[A-Z2-9]{8}$/.test(normalized)) return null;
+  const snap = await getDoc(doc(db, "inviteCodes", normalized));
   if (!snap.exists()) return null;
   return { householdId: snap.data().householdId as string };
 }

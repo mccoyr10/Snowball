@@ -6,6 +6,7 @@ export interface UIDebt {
   balance: number;
   apr: number;
   minPayment: number;
+  startingBalance?: number;
 }
 
 export interface UISettings {

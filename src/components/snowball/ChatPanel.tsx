@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { getIdToken } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 import { formatCurrency, type UIDebt, type UISettings, type Summary } from "@/lib/snowball";
 
 interface Message {
@@ -49,9 +51,13 @@ export default function ChatPanel({ debts, settings, summary }: ChatPanelProps) 
         savingsVsMinOnly: formatCurrency(summary.savingsVsMinOnly),
       };
 
+      const idToken = auth.currentUser ? await getIdToken(auth.currentUser) : "";
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${idToken}`,
+        },
         body: JSON.stringify({ messages: newMessages, context }),
       });
 

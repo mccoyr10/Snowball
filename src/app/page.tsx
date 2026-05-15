@@ -12,7 +12,8 @@ export default function Home() {
     if (!loading && user) router.replace("/dashboard");
   }, [user, loading, router]);
 
-  if (loading) {
+  // Show spinner while loading OR while authenticated (waiting for redirect to fire)
+  if (loading || user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-700 border-t-transparent" />

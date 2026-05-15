@@ -26,6 +26,8 @@ import ActualPayments from "@/components/snowball/ActualPayments";
 import ChatPanel from "@/components/snowball/ChatPanel";
 import OnboardingModal, { shouldShowOnboarding } from "@/components/snowball/OnboardingModal";
 import HouseholdModal from "@/components/snowball/HouseholdModal";
+import PaywallGate from "@/components/PaywallGate";
+import TrialBanner from "@/components/snowball/TrialBanner";
 
 // Map Firestore Debt shape → UI shape
 function toUIDebt(d: Debt): UIDebt {
@@ -35,6 +37,7 @@ function toUIDebt(d: Debt): UIDebt {
     balance: d.balance,
     apr: d.interestRate,
     minPayment: d.minimumPayment,
+    startingBalance: d.startingBalance,
   };
 }
 
@@ -212,39 +215,42 @@ export default function SnowballApp() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <NavBar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        saveStatus={saveStatus}
-        displayName={displayName}
-        onSignOut={signOut}
-        onOpenHousehold={() => setShowHousehold(true)}
-      />
-
-      <main className="max-w-5xl mx-auto px-4 py-6 pb-24 sm:pb-6">
-        {tabs[activeTab] ?? tabs["dashboard"]}
-      </main>
-
-      <Modal
-        open={modalOpen}
-        onClose={() => { setModalOpen(false); setEditingDebt(null); }}
-        title={editingDebt ? "Edit Debt" : "Add Debt"}
-      >
-        <DebtForm
-          initial={editingDebt}
-          onSave={handleSaveDebt}
-          onClose={() => { setModalOpen(false); setEditingDebt(null); }}
+    <PaywallGate>
+      <div className="min-h-screen bg-gray-50">
+        <NavBar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          saveStatus={saveStatus}
+          displayName={displayName}
+          onSignOut={signOut}
+          onOpenHousehold={() => setShowHousehold(true)}
         />
-      </Modal>
+        <TrialBanner />
 
-      {showOnboarding && (
-        <OnboardingModal onComplete={() => setShowOnboarding(false)} />
-      )}
+        <main className="max-w-5xl mx-auto px-4 py-6 pb-24 sm:pb-6">
+          {tabs[activeTab] ?? tabs["dashboard"]}
+        </main>
 
-      {showHousehold && (
-        <HouseholdModal onClose={() => setShowHousehold(false)} />
-      )}
-    </div>
+        <Modal
+          open={modalOpen}
+          onClose={() => { setModalOpen(false); setEditingDebt(null); }}
+          title={editingDebt ? "Edit Debt" : "Add Debt"}
+        >
+          <DebtForm
+            initial={editingDebt}
+            onSave={handleSaveDebt}
+            onClose={() => { setModalOpen(false); setEditingDebt(null); }}
+          />
+        </Modal>
+
+        {showOnboarding && (
+          <OnboardingModal onComplete={() => setShowOnboarding(false)} />
+        )}
+
+        {showHousehold && (
+          <HouseholdModal onClose={() => setShowHousehold(false)} />
+        )}
+      </div>
+    </PaywallGate>
   );
 }
