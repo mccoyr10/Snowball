@@ -36,6 +36,7 @@ export interface Actual {
   id: string;
   month: string; // "YYYY-MM"
   amount: number;
+  debtId?: string; // undefined for legacy total-only actuals
   createdAt: Timestamp;
 }
 

@@ -131,14 +131,26 @@ export function subscribeActuals(
   });
 }
 
-export async function addActual(
+// Upsert a per-debt actual — document ID is stable so writing twice just updates it
+export async function setActual(
   householdId: string,
-  data: Omit<Actual, "id" | "createdAt">
+  month: string,
+  debtId: string,
+  amount: number
 ): Promise<void> {
-  await addDoc(collection(db, "households", householdId, "actuals"), {
-    ...data,
-    createdAt: serverTimestamp(),
-  });
+  await setDoc(
+    doc(db, "households", householdId, "actuals", `${month}_${debtId}`),
+    { month, debtId, amount, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+}
+
+export async function deleteActual(
+  householdId: string,
+  month: string,
+  debtId: string
+): Promise<void> {
+  await deleteDoc(doc(db, "households", householdId, "actuals", `${month}_${debtId}`));
 }
 
 // ─── Legacy migration ─────────────────────────────────────────────────────────
