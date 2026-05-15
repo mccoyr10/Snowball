@@ -79,7 +79,34 @@ export default function WhatIfPlanner({ debts, settings, summary }: WhatIfPlanne
     const monthsSaved = summary.monthsRemaining - newSummary.monthsRemaining;
     const interestSaved = summary.totalInterestPlanned - newSummary.totalInterestPlanned;
 
-    return { newSummary, monthsSaved, interestSaved };
+    // Per-debt comparison
+    const sortedDebts = [...debts].sort((a, b) => Number(a.balance) - Number(b.balance));
+    const debtRows = sortedDebts.map(d => {
+      const currentPayoff = summary.debtPayoffDates[d.id] ?? null;
+      const newPayoff = newSummary.debtPayoffDates[d.id] ?? null;
+      const currentInterest = summary.debtInterestTotals[d.id] ?? 0;
+      const newInterest = newSummary.debtInterestTotals[d.id] ?? 0;
+
+      // Count months between two YYYY-MM strings
+      function monthDiff(a: string | null, b: string | null): number {
+        if (!a || !b) return 0;
+        const [ay, am] = a.split("-").map(Number);
+        const [by, bm] = b.split("-").map(Number);
+        return (ay * 12 + am) - (by * 12 + bm);
+      }
+
+      return {
+        debt: d,
+        currentPayoff,
+        newPayoff,
+        monthsSaved: monthDiff(currentPayoff, newPayoff),
+        currentInterest,
+        newInterest,
+        interestSaved: currentInterest - newInterest,
+      };
+    });
+
+    return { newSummary, monthsSaved, interestSaved, debtRows };
   }, [open, debts, settings, summary, extraMonthly, lumpSum, overrides]);
 
   if (debts.length === 0) return null;
@@ -190,40 +217,115 @@ export default function WhatIfPlanner({ debts, settings, summary }: WhatIfPlanne
 
           {/* Results */}
           {result ? (
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-3">
-              <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Projected Results</p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-white rounded-lg p-3 border border-blue-100">
-                  <p className="text-xs text-gray-400 mb-1">New Payoff Date</p>
-                  <p className="text-sm font-bold text-gray-800">{formatMonth(result.newSummary.projectedPayoffDate)}</p>
-                  {result.monthsSaved > 0 && (
-                    <p className="text-xs text-green-600 font-medium mt-0.5">{result.monthsSaved} mo. sooner</p>
-                  )}
+            <div className="space-y-3">
+              {/* Overall summary */}
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-3">
+                <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Overall Impact</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-white rounded-lg p-3 border border-blue-100">
+                    <p className="text-xs text-gray-400 mb-1">New Payoff Date</p>
+                    <p className="text-sm font-bold text-gray-800">{formatMonth(result.newSummary.projectedPayoffDate)}</p>
+                    {result.monthsSaved > 0 && (
+                      <p className="text-xs text-green-600 font-medium mt-0.5">{result.monthsSaved} mo. sooner</p>
+                    )}
+                  </div>
+                  <div className="bg-white rounded-lg p-3 border border-blue-100">
+                    <p className="text-xs text-gray-400 mb-1">Months Left</p>
+                    <p className="text-sm font-bold text-blue-700">{result.newSummary.monthsRemaining}</p>
+                    {result.monthsSaved > 0 && (
+                      <p className="text-xs text-green-600 font-medium mt-0.5">vs. {summary.monthsRemaining} now</p>
+                    )}
+                  </div>
+                  <div className="bg-white rounded-lg p-3 border border-blue-100">
+                    <p className="text-xs text-gray-400 mb-1">New Total Interest</p>
+                    <p className="text-sm font-bold text-orange-500">{formatCurrency(result.newSummary.totalInterestPlanned)}</p>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 border border-blue-100">
+                    <p className="text-xs text-gray-400 mb-1">Interest Saved</p>
+                    <p className={`text-sm font-bold ${result.interestSaved > 0 ? "text-green-600" : "text-gray-500"}`}>
+                      {result.interestSaved > 0 ? formatCurrency(result.interestSaved) : "—"}
+                    </p>
+                  </div>
                 </div>
-                <div className="bg-white rounded-lg p-3 border border-blue-100">
-                  <p className="text-xs text-gray-400 mb-1">Months Left</p>
-                  <p className="text-sm font-bold text-blue-700">{result.newSummary.monthsRemaining}</p>
-                  {result.monthsSaved > 0 && (
-                    <p className="text-xs text-green-600 font-medium mt-0.5">vs. {summary.monthsRemaining} now</p>
-                  )}
+                {result.monthsSaved > 0 && (
+                  <div className="flex items-center gap-2 text-sm text-green-700 font-medium">
+                    <span>🎉</span>
+                    <span>You&apos;d be debt-free {result.monthsSaved} month{result.monthsSaved !== 1 ? "s" : ""} earlier!</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Per-debt breakdown */}
+              <div className="border border-gray-100 rounded-xl overflow-hidden">
+                <div className="bg-gray-50 px-4 py-2.5 border-b border-gray-100">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Per-Debt Breakdown</p>
                 </div>
-                <div className="bg-white rounded-lg p-3 border border-blue-100">
-                  <p className="text-xs text-gray-400 mb-1">New Total Interest</p>
-                  <p className="text-sm font-bold text-orange-500">{formatCurrency(result.newSummary.totalInterestPlanned)}</p>
-                </div>
-                <div className="bg-white rounded-lg p-3 border border-blue-100">
-                  <p className="text-xs text-gray-400 mb-1">Interest Saved</p>
-                  <p className={`text-sm font-bold ${result.interestSaved > 0 ? "text-green-600" : "text-gray-500"}`}>
-                    {result.interestSaved > 0 ? formatCurrency(result.interestSaved) : "—"}
-                  </p>
+                {/* Desktop table */}
+                <table className="hidden sm:table min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-400">Debt</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-400">Current Payoff</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-400">New Payoff</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-400">Mo. Saved</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-400">Current Interest</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-400">New Interest</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-400">Int. Saved</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 bg-white">
+                    {result.debtRows.map(row => (
+                      <tr key={row.debt.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium text-gray-700">{row.debt.name}</td>
+                        <td className="px-4 py-3 text-right text-gray-400 text-xs">{formatMonth(row.currentPayoff)}</td>
+                        <td className="px-4 py-3 text-right font-medium text-gray-700 text-xs">{formatMonth(row.newPayoff)}</td>
+                        <td className="px-4 py-3 text-right">
+                          {row.monthsSaved > 0
+                            ? <span className="text-green-600 font-medium text-xs">{row.monthsSaved} mo.</span>
+                            : <span className="text-gray-300 text-xs">—</span>}
+                        </td>
+                        <td className="px-4 py-3 text-right text-orange-400 text-xs">{formatCurrency(row.currentInterest)}</td>
+                        <td className="px-4 py-3 text-right text-orange-500 font-medium text-xs">{formatCurrency(row.newInterest)}</td>
+                        <td className="px-4 py-3 text-right">
+                          {row.interestSaved > 0
+                            ? <span className="text-green-600 font-medium text-xs">{formatCurrency(row.interestSaved)}</span>
+                            : <span className="text-gray-300 text-xs">—</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {/* Mobile cards */}
+                <div className="sm:hidden divide-y divide-gray-50 bg-white">
+                  {result.debtRows.map(row => (
+                    <div key={row.debt.id} className="px-4 py-3">
+                      <p className="font-medium text-gray-700 mb-2">{row.debt.name}</p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                        <div className="text-gray-400">Current payoff</div>
+                        <div className="text-right text-gray-500">{formatMonth(row.currentPayoff)}</div>
+                        <div className="text-gray-400">New payoff</div>
+                        <div className="text-right font-medium text-gray-700">{formatMonth(row.newPayoff)}</div>
+                        {row.monthsSaved > 0 && (
+                          <>
+                            <div className="text-gray-400">Months saved</div>
+                            <div className="text-right text-green-600 font-medium">{row.monthsSaved} mo.</div>
+                          </>
+                        )}
+                        <div className="text-gray-400">Current interest</div>
+                        <div className="text-right text-orange-400">{formatCurrency(row.currentInterest)}</div>
+                        <div className="text-gray-400">New interest</div>
+                        <div className="text-right text-orange-500 font-medium">{formatCurrency(row.newInterest)}</div>
+                        {row.interestSaved > 0 && (
+                          <>
+                            <div className="text-gray-400">Interest saved</div>
+                            <div className="text-right text-green-600 font-medium">{formatCurrency(row.interestSaved)}</div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-              {result.monthsSaved > 0 && (
-                <div className="flex items-center gap-2 text-sm text-green-700 font-medium">
-                  <span>🎉</span>
-                  <span>You&apos;d be debt-free {result.monthsSaved} month{result.monthsSaved !== 1 ? "s" : ""} earlier!</span>
-                </div>
-              )}
             </div>
           ) : (
             <div className="text-center py-4 text-gray-400 text-sm">
