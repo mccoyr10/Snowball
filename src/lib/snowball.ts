@@ -89,12 +89,17 @@ export function isValidYYYYMM(s: unknown): s is string {
 
 // ── Core Algorithm ─────────────────────────────────────────────────────────────
 
-export function buildSnowballSchedule(debts: UIDebt[], settings: UISettings): ScheduleEntry[] {
+// monthlyOverrides: extra amounts on top of base budget for specific months, keyed by YYYY-MM
+export function buildSnowballSchedule(
+  debts: UIDebt[],
+  settings: UISettings,
+  monthlyOverrides?: Record<string, number>
+): ScheduleEntry[] {
   if (!debts || debts.length === 0) return [];
-  const budget = Number(settings.monthlyBudget) || 0;
-  if (budget === 0) return [];
+  const baseBudget = Number(settings.monthlyBudget) || 0;
+  if (baseBudget === 0) return [];
   const totalMin = debts.reduce((s, d) => s + Number(d.minPayment), 0);
-  if (budget < totalMin) return [];
+  if (baseBudget < totalMin) return [];
 
   let working = debts.map(d => ({ ...d, balance: Number(d.balance) }))
                      .sort((a, b) => a.balance - b.balance);
@@ -108,6 +113,7 @@ export function buildSnowballSchedule(debts: UIDebt[], settings: UISettings): Sc
     if (active.length === 0) break;
 
     const snapshots: DebtSnapshot[] = [];
+    const budget = r2(baseBudget + (monthlyOverrides?.[month] ?? 0));
     let remaining = budget;
     const snowballId = active[0].id;
 

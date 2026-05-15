@@ -2,9 +2,15 @@
 
 import { useState, useMemo } from "react";
 import {
-  buildSnowballSchedule, calculateSummary, formatCurrency, formatMonth,
+  buildSnowballSchedule, calculateSummary, formatCurrency, formatMonth, todayYYYYMM,
   type UIDebt, type UISettings, type Summary, type ScheduleEntry,
 } from "@/lib/snowball";
+
+interface MonthlyOverride {
+  key: number; // stable local id for React key
+  month: string;
+  amount: string;
+}
 
 interface WhatIfPlannerProps {
   debts: UIDebt[];
@@ -13,16 +19,35 @@ interface WhatIfPlannerProps {
   schedule: ScheduleEntry[];
 }
 
-export default function WhatIfPlanner({ debts, settings, summary, schedule }: WhatIfPlannerProps) {
+let _keyCounter = 0;
+function newOverride(): MonthlyOverride {
+  return { key: ++_keyCounter, month: todayYYYYMM(), amount: "" };
+}
+
+export default function WhatIfPlanner({ debts, settings, summary }: WhatIfPlannerProps) {
   const [open, setOpen] = useState(false);
   const [extraMonthly, setExtraMonthly] = useState("");
   const [lumpSum, setLumpSum] = useState("");
+  const [overrides, setOverrides] = useState<MonthlyOverride[]>([]);
+
+  function addRow() {
+    setOverrides(prev => [...prev, newOverride()]);
+  }
+
+  function removeRow(key: number) {
+    setOverrides(prev => prev.filter(r => r.key !== key));
+  }
+
+  function updateRow(key: number, field: "month" | "amount", value: string) {
+    setOverrides(prev => prev.map(r => r.key === key ? { ...r, [field]: value } : r));
+  }
 
   const result = useMemo(() => {
     if (!open || debts.length === 0) return null;
     const extra = Number(extraMonthly) || 0;
     const lump = Number(lumpSum) || 0;
-    if (extra === 0 && lump === 0) return null;
+    const hasOverrides = overrides.some(r => r.month && Number(r.amount) > 0);
+    if (extra === 0 && lump === 0 && !hasOverrides) return null;
 
     // Apply lump sum to the snowball target (lowest balance debt)
     const sorted = [...debts].sort((a, b) => Number(a.balance) - Number(b.balance));
@@ -33,21 +58,33 @@ export default function WhatIfPlanner({ debts, settings, summary, schedule }: Wh
       return d;
     });
 
+    // Build per-month overrides map: sum all rows for the same month + consistent extra
+    const overrideMap: Record<string, number> = {};
+    for (const row of overrides) {
+      const amt = Number(row.amount) || 0;
+      if (row.month && amt > 0) {
+        overrideMap[row.month] = (overrideMap[row.month] ?? 0) + amt;
+      }
+    }
+    // Add the consistent extra to every month that doesn't have an override,
+    // and on top of months that do (by baking it into the base budget instead)
     const hypotheticalSettings: UISettings = {
       ...settings,
       monthlyBudget: Number(settings.monthlyBudget) + extra,
     };
 
-    const newSchedule = buildSnowballSchedule(hypotheticalDebts, hypotheticalSettings);
+    const newSchedule = buildSnowballSchedule(hypotheticalDebts, hypotheticalSettings, overrideMap);
     const newSummary = calculateSummary(hypotheticalDebts, newSchedule, hypotheticalSettings);
 
     const monthsSaved = summary.monthsRemaining - newSummary.monthsRemaining;
     const interestSaved = summary.totalInterestPlanned - newSummary.totalInterestPlanned;
 
-    return { newSummary, newSchedule, monthsSaved, interestSaved };
-  }, [open, debts, settings, summary, extraMonthly, lumpSum]);
+    return { newSummary, monthsSaved, interestSaved };
+  }, [open, debts, settings, summary, extraMonthly, lumpSum, overrides]);
 
   if (debts.length === 0) return null;
+
+  const targetDebtName = [...debts].sort((a, b) => Number(a.balance) - Number(b.balance))[0]?.name;
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -72,44 +109,86 @@ export default function WhatIfPlanner({ debts, settings, summary, schedule }: Wh
 
       {open && (
         <div className="border-t border-gray-100 p-5 space-y-5">
+
+          {/* Consistent extra + lump sum */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-600 mb-1.5">
-                Extra monthly payment ($)
+                Extra every month ($)
               </label>
               <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={extraMonthly}
+                type="number" min="0" step="0.01" value={extraMonthly}
                 onChange={e => setExtraMonthly(e.target.value)}
                 placeholder="e.g. 200"
                 className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <p className="text-xs text-gray-400 mt-1">Added on top of your current {formatCurrency(Number(settings.monthlyBudget))} budget</p>
+              <p className="text-xs text-gray-400 mt-1">Added on top of your current {formatCurrency(Number(settings.monthlyBudget))} budget every month</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-600 mb-1.5">
                 One-time lump sum ($)
               </label>
               <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={lumpSum}
+                type="number" min="0" step="0.01" value={lumpSum}
                 onChange={e => setLumpSum(e.target.value)}
                 placeholder="e.g. 1000"
                 className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <p className="text-xs text-gray-400 mt-1">
-                Applied to target debt:{" "}
-                <span className="font-medium text-gray-600">
-                  {[...debts].sort((a, b) => Number(a.balance) - Number(b.balance))[0]?.name}
-                </span>
+                Applied to target: <span className="font-medium text-gray-600">{targetDebtName}</span>
               </p>
             </div>
           </div>
 
+          {/* Per-month specific payments */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-gray-600">Specific month extra payments</label>
+              <button
+                onClick={addRow}
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+              >
+                <span className="text-base leading-none">+</span> Add month
+              </button>
+            </div>
+
+            {overrides.length === 0 ? (
+              <p className="text-xs text-gray-400 py-2">
+                No specific months added — click &ldquo;+ Add month&rdquo; to enter a one-off extra payment for a particular month (e.g. a tax refund in April).
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {overrides.map(row => (
+                  <div key={row.key} className="flex items-center gap-2">
+                    <input
+                      type="month"
+                      value={row.month}
+                      onChange={e => updateRow(row.key, "month", e.target.value)}
+                      className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 flex-1 min-w-0"
+                    />
+                    <div className="relative flex-1 min-w-0">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                      <input
+                        type="number" min="0" step="0.01"
+                        value={row.amount}
+                        onChange={e => updateRow(row.key, "amount", e.target.value)}
+                        placeholder="0.00"
+                        className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <button
+                      onClick={() => removeRow(row.key)}
+                      className="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-red-400 flex-shrink-0 rounded-lg hover:bg-red-50 transition-colors"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Results */}
           {result ? (
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-3">
               <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Projected Results</p>
@@ -131,9 +210,6 @@ export default function WhatIfPlanner({ debts, settings, summary, schedule }: Wh
                 <div className="bg-white rounded-lg p-3 border border-blue-100">
                   <p className="text-xs text-gray-400 mb-1">New Total Interest</p>
                   <p className="text-sm font-bold text-orange-500">{formatCurrency(result.newSummary.totalInterestPlanned)}</p>
-                  {result.interestSaved > 0 && (
-                    <p className="text-xs text-green-600 font-medium mt-0.5">save {formatCurrency(result.interestSaved)}</p>
-                  )}
                 </div>
                 <div className="bg-white rounded-lg p-3 border border-blue-100">
                   <p className="text-xs text-gray-400 mb-1">Interest Saved</p>
@@ -145,13 +221,13 @@ export default function WhatIfPlanner({ debts, settings, summary, schedule }: Wh
               {result.monthsSaved > 0 && (
                 <div className="flex items-center gap-2 text-sm text-green-700 font-medium">
                   <span>🎉</span>
-                  <span>You'd be debt-free {result.monthsSaved} month{result.monthsSaved !== 1 ? "s" : ""} earlier!</span>
+                  <span>You&apos;d be debt-free {result.monthsSaved} month{result.monthsSaved !== 1 ? "s" : ""} earlier!</span>
                 </div>
               )}
             </div>
           ) : (
-            <div className="text-center py-6 text-gray-400 text-sm">
-              Enter an extra payment or lump sum above to see the impact.
+            <div className="text-center py-4 text-gray-400 text-sm">
+              Enter values above to see the projected impact.
             </div>
           )}
         </div>
