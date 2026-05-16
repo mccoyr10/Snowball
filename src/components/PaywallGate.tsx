@@ -86,7 +86,7 @@ export default function PaywallGate({ children }: { children: React.ReactNode })
         </div>
 
         <div>
-          <p className="text-3xl font-bold text-gray-800 mb-1">$7<span className="text-base font-normal text-gray-400">/month</span></p>
+          <p className="text-3xl font-bold text-gray-800 mb-1">$4.99<span className="text-base font-normal text-gray-400">/month</span></p>
           <p className="text-xs text-gray-400">Cancel any time. No hidden fees.</p>
         </div>
 
