@@ -32,8 +32,7 @@ export async function createUserDoc(
     email,
     displayName,
     householdId,
-    subscriptionStatus: "trialing",
-    trialStartedAt: serverTimestamp(),
+    subscriptionStatus: "incomplete",
     createdAt: serverTimestamp(),
   });
 }
@@ -144,7 +143,6 @@ export function subscribeActuals(
   });
 }
 
-// Upsert a per-debt actual — document ID is stable so writing twice just updates it
 export async function setActual(
   householdId: string,
   month: string,
@@ -169,7 +167,7 @@ export async function deleteActual(
 // ─── Household invite / join ──────────────────────────────────────────────────
 
 function randomInviteCode(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no O/0/I/1 to avoid confusion
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "";
   for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
   return code;
@@ -207,7 +205,6 @@ export async function readLegacyData(): Promise<LegacyData | null> {
   const snap = await getDoc(doc(db, "snowball", "appdata"));
   if (!snap.exists()) return null;
   const raw = snap.data();
-  // The old app stored everything as a JSON string in a "data" field
   if (typeof raw.data === "string") {
     try {
       return JSON.parse(raw.data) as LegacyData;
@@ -215,7 +212,6 @@ export async function readLegacyData(): Promise<LegacyData | null> {
       return null;
     }
   }
-  // Or it may have been stored as a map directly
   if (raw.debts) return raw as LegacyData;
   return null;
 }
@@ -224,7 +220,6 @@ export async function migrateLegacyData(
   householdId: string,
   legacy: LegacyData
 ): Promise<void> {
-  // Migrate debts
   for (const d of legacy.debts) {
     await addDoc(collection(db, "households", householdId, "debts"), {
       name: d.name,
@@ -235,16 +230,12 @@ export async function migrateLegacyData(
       createdAt: serverTimestamp(),
     });
   }
-
-  // Migrate strategy / settings
   await setDoc(doc(db, "households", householdId, "settings", "strategy"), {
     monthlyBudget: legacy.settings.monthlyBudget,
     method: "snowball",
     startDate: legacy.settings.startDate,
     updatedAt: serverTimestamp(),
   });
-
-  // Migrate actuals
   for (const a of legacy.actuals) {
     await addDoc(collection(db, "households", householdId, "actuals"), {
       month: a.month,

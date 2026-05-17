@@ -17,10 +17,10 @@ export function getTrialDaysRemaining(trialStartedAt: Timestamp | undefined): nu
 }
 
 export function isAccessAllowed(status: SubscriptionStatus | undefined, trialStartedAt: Timestamp | undefined): boolean {
-  if (!status) return true;
+  if (!status) return true; // grandfathered user
   if (status === "active") return true;
   if (status === "trialing") return getTrialDaysRemaining(trialStartedAt) > 0;
-  return false;
+  return false; // incomplete, past_due, canceled
 }
 
 export default function PaywallGate({ children }: { children: React.ReactNode }) {
@@ -40,7 +40,6 @@ export default function PaywallGate({ children }: { children: React.ReactNode })
       attempts++;
       await refreshUserDoc();
       if (attempts >= 15) {
-        // 30 seconds — give up polling, let onSnapshot handle it
         clearInterval(pollRef.current!);
         setProcessing(false);
       }
@@ -62,7 +61,6 @@ export default function PaywallGate({ children }: { children: React.ReactNode })
   const allowed = isAccessAllowed(userDoc.subscriptionStatus, userDoc.trialStartedAt);
   if (allowed) return <>{children}</>;
 
-  // Show processing state while waiting for webhook to update status
   if (processing) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
@@ -104,6 +102,7 @@ export default function PaywallGate({ children }: { children: React.ReactNode })
     }
   }
 
+  const isIncomplete = userDoc.subscriptionStatus === "incomplete";
   const daysRemaining = getTrialDaysRemaining(userDoc.trialStartedAt);
   const isExpired = userDoc.subscriptionStatus === "past_due" || userDoc.subscriptionStatus === "canceled" || (userDoc.subscriptionStatus === "trialing" && daysRemaining === 0);
 
@@ -113,10 +112,12 @@ export default function PaywallGate({ children }: { children: React.ReactNode })
         <div className="text-5xl">❄️</div>
         <div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">
-            {isExpired ? "Your trial has ended" : "Subscribe to continue"}
+            {isIncomplete ? "Complete your setup" : isExpired ? "Your trial has ended" : "Subscribe to continue"}
           </h2>
           <p className="text-gray-500 text-sm leading-relaxed">
-            {isExpired
+            {isIncomplete
+              ? "Start your 14-day free trial to access Snowball. Cancel any time."
+              : isExpired
               ? "Your free trial is over. Subscribe to keep tracking your debt payoff progress."
               : "You've been using Snowball during your trial. Subscribe to keep full access."}
           </p>
@@ -132,7 +133,7 @@ export default function PaywallGate({ children }: { children: React.ReactNode })
 
         <div>
           <p className="text-3xl font-bold text-gray-800 mb-1">$4.99<span className="text-base font-normal text-gray-400">/month</span></p>
-          <p className="text-xs text-gray-400">Cancel any time. No hidden fees.</p>
+          <p className="text-xs text-gray-400">14 days free, then $4.99/month. Cancel any time.</p>
         </div>
 
         {error && <p className="text-sm text-red-500">{error}</p>}
@@ -142,7 +143,7 @@ export default function PaywallGate({ children }: { children: React.ReactNode })
           disabled={loading}
           className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl py-4 font-semibold text-base"
         >
-          {loading ? "Redirecting to checkout…" : "Subscribe now →"}
+          {loading ? "Redirecting to checkout…" : isIncomplete ? "Start free trial →" : "Subscribe now →"}
         </button>
         <p className="text-xs text-gray-400">Secure payment via Stripe</p>
       </div>

@@ -42,7 +42,10 @@ export async function POST(request: Request) {
         const uid = session.metadata?.firebaseUid;
         const customerId = session.customer as string;
         if (uid) {
-          const data: Record<string, unknown> = { subscriptionStatus: "active" };
+          const data: Record<string, unknown> = {
+            subscriptionStatus: "trialing",
+            trialStartedAt: new Date(),
+          };
           if (customerId) data.stripeCustomerId = customerId;
           await db.doc(`users/${uid}`).update(data);
         }

@@ -1,6 +1,6 @@
 import { Timestamp } from "firebase/firestore";
 
-export type SubscriptionStatus = "trialing" | "active" | "past_due" | "canceled";
+export type SubscriptionStatus = "incomplete" | "trialing" | "active" | "past_due" | "canceled";
 
 export interface UserDoc {
   email: string;
@@ -25,7 +25,7 @@ export interface Debt {
   id: string;
   name: string;
   balance: number;
-  interestRate: number;   // APR as a percentage e.g. 4.69
+  interestRate: number;
   minimumPayment: number;
   startingBalance: number;
   createdAt: Timestamp;
@@ -34,19 +34,18 @@ export interface Debt {
 export interface Strategy {
   monthlyBudget: number;
   method: "snowball" | "avalanche";
-  startDate: string; // "YYYY-MM"
+  startDate: string;
   updatedAt: Timestamp;
 }
 
 export interface Actual {
   id: string;
-  month: string; // "YYYY-MM"
+  month: string;
   amount: number;
-  debtId?: string; // undefined for legacy total-only actuals
+  debtId?: string;
   createdAt: Timestamp;
 }
 
-// Shape of data inside the legacy snowball/appdata document
 export interface LegacyData {
   debts: { id: string; name: string; balance: number; apr: number; minPayment: number }[];
   settings: { monthlyBudget: number; startDate: string };
