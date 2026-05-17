@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { getIdToken } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 import { getHousehold, generateInviteCode, lookupInviteCode, joinHousehold } from "@/lib/firestore";
 import type { Household } from "@/types";
@@ -9,9 +11,25 @@ interface HouseholdModalProps {
   onClose: () => void;
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  trialing: "Free trial",
+  active: "Active",
+  past_due: "Past due",
+  canceled: "Canceled",
+  incomplete: "Incomplete",
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  trialing: "text-blue-600 bg-blue-50",
+  active: "text-green-700 bg-green-50",
+  past_due: "text-red-600 bg-red-50",
+  canceled: "text-gray-500 bg-gray-100",
+  incomplete: "text-amber-600 bg-amber-50",
+};
+
 export default function HouseholdModal({ onClose }: HouseholdModalProps) {
   const { user, userDoc, refreshUserDoc } = useAuth();
-  const [tab, setTab] = useState<"invite" | "join">("invite");
+  const [tab, setTab] = useState<"invite" | "join" | "account">("invite");
   const [household, setHousehold] = useState<Household | null>(null);
   const [loadingHousehold, setLoadingHousehold] = useState(true);
 
@@ -22,6 +40,34 @@ export default function HouseholdModal({ onClose }: HouseholdModalProps) {
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState("");
   const [joinSuccess, setJoinSuccess] = useState(false);
+
+  const [canceling, setCanceling] = useState(false);
+  const [cancelError, setCancelError] = useState("");
+  const [cancelSuccess, setCancelSuccess] = useState(false);
+
+  async function handleCancelSubscription() {
+    if (!user) return;
+    if (!confirm("Cancel your subscription? You'll keep access until the end of your current billing period.")) return;
+    setCanceling(true);
+    setCancelError("");
+    try {
+      const idToken = await getIdToken(user);
+      const res = await fetch("/api/stripe/cancel-subscription", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Could not cancel subscription.");
+      }
+      setCancelSuccess(true);
+      await refreshUserDoc();
+    } catch (e) {
+      setCancelError(e instanceof Error ? e.message : "Something went wrong.");
+    } finally {
+      setCanceling(false);
+    }
+  }
 
   useEffect(() => {
     if (!userDoc?.householdId) return;
@@ -95,9 +141,15 @@ export default function HouseholdModal({ onClose }: HouseholdModalProps) {
           </button>
           <button
             onClick={() => setTab("join")}
-            className={`py-3 text-sm font-medium border-b-2 transition-colors ${tab === "join" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-400"}`}
+            className={`py-3 text-sm font-medium border-b-2 mr-6 transition-colors ${tab === "join" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-400"}`}
           >
             Join a household
+          </button>
+          <button
+            onClick={() => setTab("account")}
+            className={`py-3 text-sm font-medium border-b-2 transition-colors ${tab === "account" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-400"}`}
+          >
+            Account
           </button>
         </div>
 
@@ -156,7 +208,7 @@ export default function HouseholdModal({ onClose }: HouseholdModalProps) {
                 </>
               )}
             </div>
-          ) : (
+          ) : tab === "join" ? (
             <div className="space-y-4">
               {joinSuccess ? (
                 <div className="text-center py-6 space-y-3">
@@ -197,6 +249,47 @@ export default function HouseholdModal({ onClose }: HouseholdModalProps) {
                   </button>
                 </>
               )}
+            </div>
+          ) : (
+            /* Account tab */
+            <div className="space-y-5">
+              <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Email</p>
+                  <p className="text-sm font-medium text-gray-800">{user?.email}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Subscription</p>
+                  {userDoc?.subscriptionStatus ? (
+                    <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_COLORS[userDoc.subscriptionStatus] ?? "text-gray-500 bg-gray-100"}`}>
+                      {STATUS_LABELS[userDoc.subscriptionStatus] ?? userDoc.subscriptionStatus}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-gray-500">—</span>
+                  )}
+                </div>
+              </div>
+
+              {cancelSuccess ? (
+                <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                  <p className="text-sm text-green-700 font-medium">Subscription canceled.</p>
+                  <p className="text-xs text-green-600 mt-0.5">You&apos;ll keep access until the end of your current billing period.</p>
+                </div>
+              ) : (userDoc?.subscriptionStatus === "active" || userDoc?.subscriptionStatus === "trialing") ? (
+                <div className="space-y-2">
+                  {cancelError && <p className="text-xs text-red-500">{cancelError}</p>}
+                  <button
+                    onClick={handleCancelSubscription}
+                    disabled={canceling}
+                    className="w-full border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 rounded-xl py-2.5 text-sm font-medium transition-colors"
+                  >
+                    {canceling ? "Canceling…" : "Cancel subscription"}
+                  </button>
+                  <p className="text-xs text-gray-400 text-center">
+                    You&apos;ll keep access through the end of your billing period.
+                  </p>
+                </div>
+              ) : null}
             </div>
           )}
         </div>

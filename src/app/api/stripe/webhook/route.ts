@@ -66,7 +66,12 @@ export async function POST(request: Request) {
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
         const customerId = invoice.customer as string;
-        console.warn("Payment failed for customer:", customerId);
+        if (customerId) {
+          const usersSnap = await db.collection("users").where("stripeCustomerId", "==", customerId).limit(1).get();
+          if (!usersSnap.empty) {
+            await usersSnap.docs[0].ref.update({ subscriptionStatus: "past_due" });
+          }
+        }
         break;
       }
     }
