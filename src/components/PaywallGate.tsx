@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { getIdToken } from "firebase/auth";
-import { auth } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 import type { SubscriptionStatus } from "@/types";
 import { Timestamp } from "firebase/firestore";
@@ -17,21 +17,66 @@ export function getTrialDaysRemaining(trialStartedAt: Timestamp | undefined): nu
 }
 
 export function isAccessAllowed(status: SubscriptionStatus | undefined, trialStartedAt: Timestamp | undefined): boolean {
-  if (!status) return true; // grandfathered user — no status means pre-subscription era
+  if (!status) return true;
   if (status === "active") return true;
   if (status === "trialing") return getTrialDaysRemaining(trialStartedAt) > 0;
   return false;
 }
 
 export default function PaywallGate({ children }: { children: React.ReactNode }) {
-  const { user, userDoc } = useAuth();
+  const { user, userDoc, refreshUserDoc } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [processing, setProcessing] = useState(false);
+  const searchParams = useSearchParams();
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // When Stripe redirects back with ?subscribed=true, poll until status updates
+  useEffect(() => {
+    if (searchParams.get("subscribed") !== "true") return;
+    setProcessing(true);
+    let attempts = 0;
+    pollRef.current = setInterval(async () => {
+      attempts++;
+      await refreshUserDoc();
+      if (attempts >= 15) {
+        // 30 seconds — give up polling, let onSnapshot handle it
+        clearInterval(pollRef.current!);
+        setProcessing(false);
+      }
+    }, 2000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, []);
+
+  // Stop polling once access is granted
+  useEffect(() => {
+    if (processing && isAccessAllowed(userDoc?.subscriptionStatus, userDoc?.trialStartedAt)) {
+      if (pollRef.current) clearInterval(pollRef.current);
+      setProcessing(false);
+      window.history.replaceState({}, "", "/dashboard");
+    }
+  }, [userDoc, processing]);
 
   if (!userDoc) return <>{children}</>;
 
   const allowed = isAccessAllowed(userDoc.subscriptionStatus, userDoc.trialStartedAt);
   if (allowed) return <>{children}</>;
+
+  // Show processing state while waiting for webhook to update status
+  if (processing) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 max-w-md w-full text-center space-y-6">
+          <div className="text-5xl">❄️</div>
+          <h2 className="text-2xl font-bold text-gray-800">Activating your subscription…</h2>
+          <p className="text-gray-500 text-sm">This usually takes just a moment. Please wait.</p>
+          <div className="flex justify-center">
+            <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   async function handleSubscribe() {
     if (!user) return;
