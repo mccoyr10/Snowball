@@ -1,9 +1,13 @@
-import { initializeApp, getApps, cert } from "firebase-admin/app";
+import { initializeApp, getApps, getApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
-if (!getApps().length) {
-  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT!);
-  initializeApp({ credential: cert(serviceAccount) });
+function getAdminApp() {
+  if (getApps().length) return getApp();
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (!raw) throw new Error("FIREBASE_SERVICE_ACCOUNT is not set");
+  return initializeApp({ credential: cert(JSON.parse(raw)) });
 }
 
-export const adminDb = getFirestore();
+export function getAdminDb() {
+  return getFirestore(getAdminApp());
+}
