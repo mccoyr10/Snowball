@@ -1,5 +1,5 @@
 import Stripe from "stripe";
-import { setSubscriptionStatus } from "@/lib/firestore";
+import { adminDb } from "@/lib/firebase-admin";
 import type { SubscriptionStatus } from "@/types";
 
 export async function POST(request: Request) {
@@ -37,25 +37,28 @@ export async function POST(request: Request) {
         const session = event.data.object as Stripe.Checkout.Session;
         const uid = session.metadata?.firebaseUid;
         const customerId = session.customer as string;
-        if (uid) await setSubscriptionStatus(uid, "active", customerId);
+        if (uid) {
+          const data: Record<string, unknown> = { subscriptionStatus: "active" };
+          if (customerId) data.stripeCustomerId = customerId;
+          await adminDb.doc(`users/${uid}`).update(data);
+        }
         break;
       }
       case "customer.subscription.updated": {
         const sub = event.data.object as Stripe.Subscription;
         const uid = sub.metadata?.firebaseUid;
-        if (uid) await setSubscriptionStatus(uid, stripeStatusToApp(sub.status));
+        if (uid) await adminDb.doc(`users/${uid}`).update({ subscriptionStatus: stripeStatusToApp(sub.status) });
         break;
       }
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
         const uid = sub.metadata?.firebaseUid;
-        if (uid) await setSubscriptionStatus(uid, "canceled");
+        if (uid) await adminDb.doc(`users/${uid}`).update({ subscriptionStatus: "canceled" });
         break;
       }
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
         const customerId = invoice.customer as string;
-        // Look up uid via customer — handled when subscription.updated fires
         console.warn("Payment failed for customer:", customerId);
         break;
       }
