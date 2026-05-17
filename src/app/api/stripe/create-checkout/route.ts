@@ -21,7 +21,6 @@ async function verifyFirebaseToken(idToken: string): Promise<string | null> {
 }
 
 export async function POST(request: Request) {
-  // Auth check
   const token = request.headers.get("Authorization")?.slice(7);
   const uid = token ? await verifyFirebaseToken(token) : null;
   if (!uid) return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -41,7 +40,7 @@ export async function POST(request: Request) {
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
-      payment_method_collection: "if_required", // no card required during trial
+      payment_method_collection: "always",
       line_items: [{ price: priceId, quantity: 1 }],
       subscription_data: {
         trial_period_days: 14,
