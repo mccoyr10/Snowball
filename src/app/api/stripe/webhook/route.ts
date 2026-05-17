@@ -2,6 +2,8 @@ import Stripe from "stripe";
 import { getAdminDb } from "@/lib/firebase-admin";
 import type { SubscriptionStatus } from "@/types";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: Request) {
   const stripeKey = process.env.STRIPE_SECRET_KEY;
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
