@@ -1,5 +1,5 @@
 import Stripe from "stripe";
-import { adminDb } from "@/lib/firebase-admin";
+import { getAdminDb } from "@/lib/firebase-admin";
 import type { SubscriptionStatus } from "@/types";
 
 export async function POST(request: Request) {
@@ -31,6 +31,8 @@ export async function POST(request: Request) {
     return "canceled";
   }
 
+  const db = getAdminDb();
+
   try {
     switch (event.type) {
       case "checkout.session.completed": {
@@ -40,20 +42,20 @@ export async function POST(request: Request) {
         if (uid) {
           const data: Record<string, unknown> = { subscriptionStatus: "active" };
           if (customerId) data.stripeCustomerId = customerId;
-          await adminDb.doc(`users/${uid}`).update(data);
+          await db.doc(`users/${uid}`).update(data);
         }
         break;
       }
       case "customer.subscription.updated": {
         const sub = event.data.object as Stripe.Subscription;
         const uid = sub.metadata?.firebaseUid;
-        if (uid) await adminDb.doc(`users/${uid}`).update({ subscriptionStatus: stripeStatusToApp(sub.status) });
+        if (uid) await db.doc(`users/${uid}`).update({ subscriptionStatus: stripeStatusToApp(sub.status) });
         break;
       }
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
         const uid = sub.metadata?.firebaseUid;
-        if (uid) await adminDb.doc(`users/${uid}`).update({ subscriptionStatus: "canceled" });
+        if (uid) await db.doc(`users/${uid}`).update({ subscriptionStatus: "canceled" });
         break;
       }
       case "invoice.payment_failed": {
