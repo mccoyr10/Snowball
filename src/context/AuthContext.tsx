@@ -17,12 +17,13 @@ import {
   onAuthStateChanged,
   updateProfile,
 } from "firebase/auth";
-import { auth, googleProvider } from "@/lib/firebase";
+import { auth, db, googleProvider } from "@/lib/firebase";
 import {
   getUserDoc,
   createUserDoc,
   createHousehold,
 } from "@/lib/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import type { UserDoc } from "@/types";
 
 interface AuthContextValue {
@@ -59,19 +60,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    let docUnsub: (() => void) | null = null;
+
+    const authUnsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (docUnsub) { docUnsub(); docUnsub = null; }
       setUser(firebaseUser);
       if (firebaseUser) {
-        // ensureUserDoc handles both returning users (load existing doc)
-        // and users who registered before Firestore was set up (auto-provision)
-        const doc = await ensureUserDoc(firebaseUser);
-        setUserDoc(doc);
+        await ensureUserDoc(firebaseUser);
+        docUnsub = onSnapshot(doc(db, "users", firebaseUser.uid), (snap) => {
+          if (snap.exists()) setUserDoc(snap.data() as UserDoc);
+          setLoading(false);
+        });
       } else {
         setUserDoc(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
-    return unsubscribe;
+
+    return () => { authUnsub(); if (docUnsub) docUnsub(); };
   }, []);
 
   async function signUp(email: string, password: string, displayName: string) {
