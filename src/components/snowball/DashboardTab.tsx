@@ -1,6 +1,8 @@
 "use client";
 
+import { useAuth } from "@/context/AuthContext";
 import { formatCurrency, formatMonth, type UIDebt, type UISettings, type Summary, type ScheduleEntry } from "@/lib/snowball";
+import WhatIfPlanner from "@/components/snowball/WhatIfPlanner";
 
 // ProgressRing SVG component
 function ProgressRing({
@@ -107,6 +109,8 @@ interface DashboardTabProps {
 }
 
 export default function DashboardTab({ debts, settings, summary, schedule, setActiveTab }: DashboardTabProps) {
+  const { userDoc } = useAuth();
+  const firstName = userDoc?.displayName?.split(" ")[0] || "there";
   if (debts.length === 0) {
     return (
       <div style={{
@@ -157,8 +161,8 @@ export default function DashboardTab({ debts, settings, summary, schedule, setAc
         gap: 16,
       }}>
         <div>
-          <div style={{ fontSize: 13, color: "var(--ink-muted)", marginBottom: 4 }}>
-            Good morning.
+          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>
+            Hi {firstName}!
           </div>
           <h1 style={{
             fontFamily: "var(--font-display)",
@@ -380,6 +384,11 @@ export default function DashboardTab({ debts, settings, summary, schedule, setAc
           </div>
         </div>
         <BurndownChart schedule={schedule} height={220} />
+      </div>
+
+      {/* What-If Scenario Planner */}
+      <div style={{ marginTop: 16 }}>
+        <WhatIfPlanner debts={debts} settings={settings} summary={summary} schedule={schedule} />
       </div>
 
       <style>{`

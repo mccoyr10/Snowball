@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { getIdToken } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { useAuth } from "@/context/AuthContext";
 import { formatCurrency, type UIDebt, type UISettings, type Summary } from "@/lib/snowball";
 
 interface Message {
@@ -24,6 +25,8 @@ const suggestions = [
 ];
 
 export default function ChatPanel({ debts, settings, summary }: ChatPanelProps) {
+  const { userDoc } = useAuth();
+  const firstName = userDoc?.displayName?.split(" ")[0] || "there";
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -91,6 +94,7 @@ export default function ChatPanel({ debts, settings, summary }: ChatPanelProps) 
       {/* Greeting */}
       <div className="greeting">
         <div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>Hi {firstName}!</div>
           <h1>
             Your <span className="h1-italic">advisor.</span>
           </h1>

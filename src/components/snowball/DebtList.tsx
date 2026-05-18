@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@/context/AuthContext";
 import { formatCurrency, formatMonth, type UIDebt, type UISettings, type Summary, type ScheduleEntry } from "@/lib/snowball";
 
 // ProgressRing for debt rows
@@ -143,6 +144,8 @@ interface DebtListProps {
 }
 
 export default function DebtList({ debts, settings, setSettings, summary, onAdd, onEdit, onDelete }: DebtListProps) {
+  const { userDoc } = useAuth();
+  const firstName = userDoc?.displayName?.split(" ")[0] || "there";
   const sorted = [...debts].sort((a, b) => Number(a.balance) - Number(b.balance));
   const totalMin = sorted.reduce((s, d) => s + d.minPayment, 0);
   const totalDebt = summary.totalBalance;
@@ -152,6 +155,7 @@ export default function DebtList({ debts, settings, setSettings, summary, onAdd,
       {/* Greeting */}
       <div className="greeting">
         <div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>Hi {firstName}!</div>
           <h1>
             Your debts <span className="h1-italic">— all in one place.</span>
           </h1>

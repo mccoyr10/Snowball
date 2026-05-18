@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 import { formatCurrency, formatMonth, type UIDebt, type ScheduleEntry } from "@/lib/snowball";
 
 // Simple burndown SVG chart
@@ -56,6 +57,8 @@ interface PayoffScheduleProps {
 }
 
 export default function PayoffSchedule({ debts, schedule }: PayoffScheduleProps) {
+  const { userDoc } = useAuth();
+  const firstName = userDoc?.displayName?.split(" ")[0] || "there";
   const [showAll, setShowAll] = useState(false);
   const [view, setView] = useState<"snowball" | "compare">("snowball");
 
@@ -91,6 +94,7 @@ export default function PayoffSchedule({ debts, schedule }: PayoffScheduleProps)
       {/* Greeting */}
       <div className="greeting">
         <div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>Hi {firstName}!</div>
           <h1>
             Your payoff <span className="h1-italic">schedule.</span>
           </h1>
