@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Teal background -->
+  <rect width="512" height="512" fill="#7CB9AD" rx="90"/>
+  <!-- Exhale cloud mark, scaled from sidebar SVG (56×34 viewBox → ×7.2 centered) -->
+  <g transform="translate(76, 156) scale(6.4)" stroke="white" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- Cloud arc -->
+    <path d="M10 22 C10 15 14 11 19 11 C19 6 23 3 28 3 C33 3 37 6 37 11 C40 9 44 12 44 16 C44 20 41 22 37 22"/>
+    <!-- Exhale sweep -->
+    <path d="M3 28 C10 23 18 25 25 29 C30 32 36 29 38 25"/>
+    <!-- Curl -->
+    <path d="M38 25 C40 20 37 16 33 18"/>
+  </g>
+</svg>

@@ -1,13 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
-const STORAGE_KEY = "snowball_onboarding_v1";
+const STORAGE_KEY = "exhale_onboarding_v1";
+
+function IOSIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+      <polyline points="16 6 12 2 8 6"/>
+      <line x1="12" y1="2" x2="12" y2="15"/>
+    </svg>
+  );
+}
 
 const STEPS = [
   {
-    icon: "❄️",
-    title: "Welcome to Snowball",
+    icon: "🌬️",
+    title: "Welcome to Exhale Debt",
     body: "Your personal debt payoff planner. We'll help you get out of debt faster using the snowball method — attacking the smallest balance first so you build momentum along the way.",
     tip: null,
   },
@@ -32,14 +42,15 @@ const STEPS = [
   {
     icon: "✏️",
     title: "Track your actual payments",
-    body: "Each month, visit the Actuals tab to log what you actually paid on each debt. We'll adjust your future projections automatically so your schedule stays accurate.",
+    body: "Each month, visit the Actuals tab to log what you actually paid. We'll adjust your future projections automatically so your schedule stays accurate.",
     tip: null,
   },
   {
-    icon: "🔮",
-    title: "Run what-if scenarios",
-    body: "On the Dashboard, the What-If Planner lets you see how an extra payment or a lump sum would change your payoff date and total interest — before you commit.",
+    icon: "📱",
+    title: "Save to your home screen",
+    body: "Add Exhale Debt to your home screen for one-tap access — it works just like a native app.",
     tip: null,
+    isHomeScreen: true,
   },
 ];
 
@@ -59,65 +70,138 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
   const isLast = step === STEPS.length - 1;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
-      <div className="absolute inset-0 bg-black bg-opacity-50" onClick={finish} />
-      <div
-        className="relative bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-md z-10 overflow-hidden"
-        style={{ paddingBottom: "max(24px, env(safe-area-inset-bottom))" }}
-      >
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 50,
+      display: "flex", alignItems: "flex-end", justifyContent: "center",
+    }}>
+      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)" }} onClick={finish} />
+      <div style={{
+        position: "relative", zIndex: 10,
+        background: "var(--surface)",
+        borderRadius: "var(--r-xl) var(--r-xl) 0 0",
+        boxShadow: "0 -8px 40px rgba(0,0,0,0.15)",
+        width: "100%",
+        maxWidth: 480,
+        overflow: "hidden",
+        paddingBottom: "max(24px, env(safe-area-inset-bottom))",
+      }}>
         {/* Progress bar */}
-        <div className="h-1 bg-gray-100">
-          <div
-            className="h-1 bg-blue-500 transition-all duration-300"
-            style={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
-          />
+        <div style={{ height: 3, background: "var(--surface-sunk)" }}>
+          <div style={{
+            height: 3, background: "var(--info)",
+            width: `${((step + 1) / STEPS.length) * 100}%`,
+            transition: "width 0.3s ease",
+          }} />
         </div>
 
-        <div className="px-6 pt-8 pb-4">
-          {/* Step indicator */}
-          <div className="flex items-center justify-between mb-6">
-            <span className="text-xs font-medium text-gray-400">{step + 1} of {STEPS.length}</span>
-            <button onClick={finish} className="text-xs text-gray-400 hover:text-gray-600">Skip</button>
+        <div style={{ padding: "28px 24px 20px" }}>
+          {/* Step counter + skip */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+            <span style={{ fontSize: 12, color: "var(--ink-faint)", fontWeight: 500 }}>
+              {step + 1} of {STEPS.length}
+            </span>
+            <button
+              onClick={finish}
+              style={{ fontSize: 12, color: "var(--ink-faint)", background: "none", border: "none", cursor: "pointer", padding: "4px 8px" }}
+            >
+              Skip
+            </button>
           </div>
 
           {/* Content */}
-          <div className="text-center mb-8">
-            <div className="text-6xl mb-5">{current.icon}</div>
-            <h2 className="text-xl font-bold text-gray-800 mb-3">{current.title}</h2>
-            <p className="text-sm text-gray-500 leading-relaxed">{current.body}</p>
+          <div style={{ textAlign: "center", marginBottom: 28 }}>
+            <div style={{ fontSize: 56, marginBottom: 18, lineHeight: 1 }}>{current.icon}</div>
+            <h2 style={{
+              fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 400,
+              color: "var(--ink)", margin: "0 0 10px",
+            }}>
+              {current.title}
+            </h2>
+            <p style={{ fontSize: 14, color: "var(--ink-muted)", lineHeight: 1.6, margin: 0 }}>
+              {current.body}
+            </p>
             {current.tip && (
-              <div className="mt-4 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-                <p className="text-xs text-blue-700 font-medium">{current.tip}</p>
+              <div style={{
+                marginTop: 14,
+                background: "var(--info-soft)", border: "1px solid var(--line)",
+                borderRadius: "var(--r-md)", padding: "10px 14px",
+              }}>
+                <p style={{ fontSize: 12.5, color: "var(--info)", fontWeight: 500, margin: 0 }}>{current.tip}</p>
+              </div>
+            )}
+
+            {/* Home screen instructions */}
+            {current.isHomeScreen && (
+              <div style={{ marginTop: 14, textAlign: "left" }}>
+                {/* iOS */}
+                <div style={{
+                  background: "var(--surface-sunk)", borderRadius: "var(--r-md)",
+                  padding: "12px 14px", marginBottom: 10,
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-muted)", marginBottom: 8, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                    iPhone / iPad (Safari)
+                  </div>
+                  <ol style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: "var(--ink-muted)", lineHeight: 1.8 }}>
+                    <li>Tap the <strong style={{ color: "var(--info)" }}>Share</strong> button <span style={{ display: "inline-flex", verticalAlign: "middle", marginLeft: 2 }}><IOSIcon /></span> at the bottom of Safari</li>
+                    <li>Scroll down and tap <strong style={{ color: "var(--ink)" }}>Add to Home Screen</strong></li>
+                    <li>Tap <strong style={{ color: "var(--ink)" }}>Add</strong> to confirm</li>
+                  </ol>
+                </div>
+                {/* Android */}
+                <div style={{
+                  background: "var(--surface-sunk)", borderRadius: "var(--r-md)",
+                  padding: "12px 14px",
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-muted)", marginBottom: 8, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                    Android (Chrome)
+                  </div>
+                  <ol style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: "var(--ink-muted)", lineHeight: 1.8 }}>
+                    <li>Tap the <strong style={{ color: "var(--ink)" }}>⋮ menu</strong> in the top-right corner</li>
+                    <li>Tap <strong style={{ color: "var(--ink)" }}>Add to Home screen</strong></li>
+                    <li>Tap <strong style={{ color: "var(--ink)" }}>Add</strong> to confirm</li>
+                  </ol>
+                </div>
               </div>
             )}
           </div>
 
           {/* Step dots */}
-          <div className="flex justify-center gap-2 mb-6">
+          <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 20 }}>
             {STEPS.map((_, i) => (
               <button
                 key={i}
                 onClick={() => setStep(i)}
-                className={`w-2 h-2 rounded-full transition-all ${i === step ? "bg-blue-500 w-5" : "bg-gray-200"}`}
+                style={{
+                  width: i === step ? 20 : 8,
+                  height: 8,
+                  borderRadius: 4,
+                  background: i === step ? "var(--info)" : "var(--surface-sunk)",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: 0,
+                  transition: "all 0.2s",
+                }}
               />
             ))}
           </div>
 
           {/* Navigation */}
-          <div className="flex gap-3">
+          <div style={{ display: "flex", gap: 10 }}>
             {step > 0 && (
               <button
                 onClick={() => setStep(s => s - 1)}
-                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl py-3.5 text-sm font-medium"
+                className="btn"
+                style={{ flex: 1, justifyContent: "center" }}
               >
                 Back
               </button>
             )}
             <button
               onClick={() => isLast ? finish() : setStep(s => s + 1)}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-3.5 text-sm font-semibold"
+              className="btn primary"
+              style={{ flex: 1, justifyContent: "center" }}
             >
-              {isLast ? "Get Started →" : "Next"}
+              {isLast ? "Get started →" : "Next"}
             </button>
           </div>
         </div>

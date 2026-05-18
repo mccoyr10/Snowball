@@ -107,7 +107,8 @@ input, select, textarea { font-family: inherit; }
 
 @media (max-width: 880px) {
   .app { grid-template-columns: 1fr; }
-  .main { padding: 24px 20px 100px; }
+  /* Extra bottom padding = nav bar (~60px) + safe area inset */
+  .main { padding: 20px 16px calc(80px + env(safe-area-inset-bottom)); }
 }
 
 /* ===== Sidebar ===== */
@@ -209,17 +210,21 @@ input, select, textarea { font-family: inherit; }
     position: fixed; bottom: 0; left: 0; right: 0;
     background: var(--surface);
     border-top: 1px solid var(--line);
-    padding: 8px 4px 12px;
+    /* Respect iPhone home indicator (safe-area-inset-bottom) */
+    padding: 8px 4px max(12px, env(safe-area-inset-bottom));
     z-index: 50;
     justify-content: space-around;
+    align-items: flex-start;
   }
   .mobile-nav .nav-item {
     flex-direction: column;
-    gap: 4px;
-    padding: 6px 8px;
-    font-size: 11px;
+    gap: 3px;
+    padding: 6px 4px;
+    font-size: 10.5px;
     align-items: center;
     width: auto;
+    min-width: 0;
+    flex: 1;
   }
   .mobile-nav .nav-item[aria-current="page"] {
     background: none;
