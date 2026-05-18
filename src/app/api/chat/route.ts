@@ -5,6 +5,38 @@ const MAX_MESSAGES = 40;
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_CONTEXT_LENGTH = 2000;
 
+function sanitizeString(v: unknown, maxLen = 200): string | undefined {
+  if (typeof v !== "string") return undefined;
+  return v.slice(0, maxLen);
+}
+
+function sanitizeContext(raw: unknown): Record<string, unknown> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const ctx = raw as Record<string, unknown>;
+  const result: Record<string, unknown> = {};
+
+  if (typeof ctx.monthlyBudget === "string") result.monthlyBudget = sanitizeString(ctx.monthlyBudget);
+  if (typeof ctx.totalDebt === "string") result.totalDebt = sanitizeString(ctx.totalDebt);
+  if (typeof ctx.projectedPayoff === "string") result.projectedPayoff = sanitizeString(ctx.projectedPayoff);
+  if (typeof ctx.monthsRemaining === "number") result.monthsRemaining = ctx.monthsRemaining;
+  if (typeof ctx.totalInterest === "string") result.totalInterest = sanitizeString(ctx.totalInterest);
+
+  if (Array.isArray(ctx.debts)) {
+    result.debts = ctx.debts.slice(0, 20).map((d: unknown) => {
+      if (!d || typeof d !== "object" || Array.isArray(d)) return {};
+      const debt = d as Record<string, unknown>;
+      return {
+        name: sanitizeString(debt.name),
+        balance: sanitizeString(debt.balance),
+        apr: sanitizeString(debt.apr),
+        minPayment: sanitizeString(debt.minPayment),
+      };
+    });
+  }
+
+  return result;
+}
+
 // Per-user rate limiting: max 30 requests per hour
 const RATE_LIMIT = 30;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
@@ -68,7 +100,10 @@ export async function POST(request: Request) {
       return Response.json({ error: "Invalid message role." }, { status: 400 });
     }
   }
-  const contextStr = JSON.stringify(context ?? {});
+  // Sanitize context: only allow the known fields the frontend sends.
+  // This prevents prompt injection via unexpected context keys.
+  const safeContext = sanitizeContext(context);
+  const contextStr = JSON.stringify(safeContext);
   if (contextStr.length > MAX_CONTEXT_LENGTH) {
     return Response.json({ error: "Context too large." }, { status: 400 });
   }
@@ -76,7 +111,7 @@ export async function POST(request: Request) {
   const client = new Anthropic({ apiKey });
 
   const systemPrompt = `You are a helpful, encouraging financial advisor inside a debt snowball tracker app.
-The user's current debt situation:
+The user's current debt situation (verified app data):
 ${contextStr}
 
 Answer what-if questions, explain payoff strategies, and provide motivation.

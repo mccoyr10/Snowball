@@ -35,43 +35,63 @@ export async function POST(request: Request) {
 
   const db = getAdminDb();
 
+  // Resolve a Firestore user doc ref by customerId, cross-checking the uid from
+  // metadata. Using customerId (from Stripe's side) as the authoritative lookup
+  // prevents metadata-tampering from affecting arbitrary accounts.
+  async function resolveUserRef(customerId: string, metaUid: string | undefined) {
+    if (!customerId) return null;
+
+    if (metaUid) {
+      const userSnap = await db.doc(`users/${metaUid}`).get();
+      if (userSnap.exists) {
+        const stored = userSnap.data()?.stripeCustomerId as string | undefined;
+        // Only trust metadata uid if the stored customerId matches or is unset
+        if (!stored || stored === customerId) {
+          return userSnap.ref;
+        }
+      }
+    }
+
+    // Fall back to a Firestore lookup by customerId
+    const snap = await db.collection("users").where("stripeCustomerId", "==", customerId).limit(1).get();
+    return snap.empty ? null : snap.docs[0].ref;
+  }
+
   try {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        const uid = session.metadata?.firebaseUid;
         const customerId = session.customer as string;
-        if (uid) {
-          const data: Record<string, unknown> = {
-            subscriptionStatus: "trialing",
+        const metaUid = session.metadata?.firebaseUid;
+        const ref = await resolveUserRef(customerId, metaUid);
+        if (ref) {
+          await ref.update({
+            subscriptionStatus: "trialing" as SubscriptionStatus,
             trialStartedAt: new Date(),
-          };
-          if (customerId) data.stripeCustomerId = customerId;
-          await db.doc(`users/${uid}`).update(data);
+            stripeCustomerId: customerId,
+          });
         }
         break;
       }
       case "customer.subscription.updated": {
         const sub = event.data.object as Stripe.Subscription;
-        const uid = sub.metadata?.firebaseUid;
-        if (uid) await db.doc(`users/${uid}`).update({ subscriptionStatus: stripeStatusToApp(sub.status) });
+        const customerId = sub.customer as string;
+        const ref = await resolveUserRef(customerId, sub.metadata?.firebaseUid);
+        if (ref) await ref.update({ subscriptionStatus: stripeStatusToApp(sub.status) });
         break;
       }
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
-        const uid = sub.metadata?.firebaseUid;
-        if (uid) await db.doc(`users/${uid}`).update({ subscriptionStatus: "canceled" });
+        const customerId = sub.customer as string;
+        const ref = await resolveUserRef(customerId, sub.metadata?.firebaseUid);
+        if (ref) await ref.update({ subscriptionStatus: "canceled" as SubscriptionStatus });
         break;
       }
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
         const customerId = invoice.customer as string;
-        if (customerId) {
-          const usersSnap = await db.collection("users").where("stripeCustomerId", "==", customerId).limit(1).get();
-          if (!usersSnap.empty) {
-            await usersSnap.docs[0].ref.update({ subscriptionStatus: "past_due" });
-          }
-        }
+        const ref = await resolveUserRef(customerId, undefined);
+        if (ref) await ref.update({ subscriptionStatus: "past_due" as SubscriptionStatus });
         break;
       }
     }
