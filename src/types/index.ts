@@ -1,0 +1,53 @@
+import { Timestamp } from "firebase/firestore";
+
+export type SubscriptionStatus = "incomplete" | "trialing" | "active" | "past_due" | "canceled";
+
+export interface UserDoc {
+  email: string;
+  displayName: string;
+  householdId: string;
+  createdAt: Timestamp;
+  subscriptionStatus?: SubscriptionStatus;
+  trialStartedAt?: Timestamp;
+  stripeCustomerId?: string;
+}
+
+export interface Household {
+  id: string;
+  name: string;
+  ownerId: string;
+  memberIds: string[];
+  inviteCode?: string;
+  createdAt: Timestamp;
+}
+
+export interface Debt {
+  id: string;
+  name: string;
+  balance: number;
+  interestRate: number;
+  minimumPayment: number;
+  startingBalance: number;
+  createdAt: Timestamp;
+}
+
+export interface Strategy {
+  monthlyBudget: number;
+  method: "snowball" | "avalanche";
+  startDate: string;
+  updatedAt: Timestamp;
+}
+
+export interface Actual {
+  id: string;
+  month: string;
+  amount: number;
+  debtId?: string;
+  createdAt: Timestamp;
+}
+
+export interface LegacyData {
+  debts: { id: string; name: string; balance: number; apr: number; minPayment: number }[];
+  settings: { monthlyBudget: number; startDate: string };
+  actuals: { id: string; month: string; amount: number }[];
+}
