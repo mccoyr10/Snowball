@@ -18,6 +18,8 @@ import type { Debt } from "@/types";
 
 import NavBar from "@/components/snowball/NavBar";
 import Modal from "@/components/snowball/Modal";
+import ConfirmModal from "@/components/snowball/ConfirmModal";
+import Toast, { type ToastItem } from "@/components/snowball/Toast";
 import DebtForm from "@/components/snowball/DebtForm";
 import DashboardTab from "@/components/snowball/DashboardTab";
 import DebtList from "@/components/snowball/DebtList";
@@ -29,7 +31,6 @@ import HouseholdModal from "@/components/snowball/HouseholdModal";
 import PaywallGate from "@/components/PaywallGate";
 import TrialBanner from "@/components/snowball/TrialBanner";
 
-// Map Firestore Debt shape → UI shape
 function toUIDebt(d: Debt): UIDebt {
   return {
     id: d.id,
@@ -42,6 +43,7 @@ function toUIDebt(d: Debt): UIDebt {
 }
 
 const STRATEGY_DEBOUNCE_MS = 800;
+let toastCounter = 0;
 
 export default function SnowballApp() {
   const { user, userDoc, signOut } = useAuth();
@@ -54,7 +56,9 @@ export default function SnowballApp() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingDebt, setEditingDebt] = useState<UIDebt | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showHousehold, setShowHousehold] = useState(false);
 
@@ -65,6 +69,12 @@ export default function SnowballApp() {
 
   const strategyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingRef = useRef(false);
+
+  function addToast(message: string, type: ToastItem["type"] = "success") {
+    const id = String(++toastCounter);
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
+  }
 
   // Sync strategy from Firestore on first load
   useEffect(() => {
@@ -112,15 +122,19 @@ export default function SnowballApp() {
 
   const loading = debtsLoading || strategyLoading || actualsLoading;
 
-  // Show onboarding once for new users who have no debts yet
+  // Show onboarding only for genuinely new users: householdId must be loaded
+  // (rules out the brief window where useDebts(null) returns empty before auth resolves)
   useEffect(() => {
-    if (!loading && firestoreDebts.length === 0 && shouldShowOnboarding()) {
+    if (householdId && !loading && firestoreDebts.length === 0 && shouldShowOnboarding()) {
       setShowOnboarding(true);
     }
-  }, [loading, firestoreDebts.length]);
+  }, [householdId, loading, firestoreDebts.length]);
 
   const debts = firestoreDebts.map(toUIDebt);
-  const { adjustedDebts } = computeActualAdjustedDebts(debts, [], actuals);
+  // Two-pass calculation: build a preliminary schedule so computeActualAdjustedDebts
+  // has month-by-month entries to apply interest + scheduled payments against.
+  const prelimSchedule = buildSnowballSchedule(debts, settings);
+  const { adjustedDebts } = computeActualAdjustedDebts(debts, prelimSchedule, actuals);
   const schedule = buildSnowballSchedule(adjustedDebts, settings);
   const summary = calculateSummary(adjustedDebts, schedule, settings);
 
@@ -137,28 +151,37 @@ export default function SnowballApp() {
       };
       if (editingDebt) {
         await updateDebt(householdId, debt.id, firestoreData);
+        addToast("Debt updated");
       } else {
         await addDebt(householdId, firestoreData);
+        addToast("Debt added");
       }
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus("idle"), 2000);
     } catch {
       setSaveStatus("error");
+      addToast("Failed to save — please try again", "error");
     }
     setModalOpen(false);
     setEditingDebt(null);
   }
 
   async function handleDeleteDebt(id: string) {
-    if (!householdId) return;
-    if (!confirm("Delete this debt?")) return;
+    setPendingDeleteId(id);
+  }
+
+  async function confirmDelete() {
+    if (!householdId || !pendingDeleteId) return;
+    setPendingDeleteId(null);
     setSaveStatus("saving");
     try {
-      await deleteDebt(householdId, id);
+      await deleteDebt(householdId, pendingDeleteId);
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus("idle"), 2000);
+      addToast("Debt deleted");
     } catch {
       setSaveStatus("error");
+      addToast("Failed to delete — please try again", "error");
     }
   }
 
@@ -179,7 +202,7 @@ export default function SnowballApp() {
     return (
       <div className="loading-screen">
         <div className="loading-inner">
-          <span className="loading-icon">❄️</span>
+          <span className="loading-icon">🌬️</span>
           <p className="loading-text">Loading your plan…</p>
         </div>
       </div>
@@ -187,6 +210,7 @@ export default function SnowballApp() {
   }
 
   const displayName = userDoc?.displayName || user?.email || "";
+  const pendingDebtName = pendingDeleteId ? (debts.find(d => d.id === pendingDeleteId)?.name ?? "this debt") : "";
 
   const tabs: Record<string, React.ReactNode> = {
     dashboard: <DashboardTab debts={adjustedDebts} settings={settings} summary={summary} schedule={schedule} setActiveTab={setActiveTab} />,
@@ -205,7 +229,7 @@ export default function SnowballApp() {
     schedule: <PayoffSchedule debts={adjustedDebts} schedule={schedule} />,
     actuals: (
       <ActualPayments
-        debts={debts}
+        debts={adjustedDebts}
         schedule={schedule}
         actuals={actuals}
         onSetActual={handleSetActual}
@@ -245,6 +269,18 @@ export default function SnowballApp() {
           onClose={() => { setModalOpen(false); setEditingDebt(null); }}
         />
       </Modal>
+
+      <ConfirmModal
+        open={!!pendingDeleteId}
+        title="Delete debt?"
+        message={`Remove "${pendingDebtName}" from your plan? This can't be undone.`}
+        confirmLabel="Delete"
+        danger
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDeleteId(null)}
+      />
+
+      <Toast toasts={toasts} onDismiss={id => setToasts(prev => prev.filter(t => t.id !== id))} />
 
       {showOnboarding && (
         <OnboardingModal onComplete={() => setShowOnboarding(false)} />

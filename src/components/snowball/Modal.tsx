@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 interface ModalProps {
   open: boolean;
   onClose: () => void;
@@ -8,21 +10,45 @@ interface ModalProps {
 }
 
 export default function Modal({ open, onClose, title, children }: ModalProps) {
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [open, onClose]);
+
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
-      <div className="absolute inset-0 bg-black bg-opacity-40" onClick={onClose} />
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 50,
+      display: "flex", alignItems: "flex-end", justifyContent: "center",
+    }}>
       <div
-        className="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-md p-4 sm:p-6 z-10"
-        style={{ paddingBottom: "max(16px, env(safe-area-inset-bottom))" }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
+        style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }}
+        onClick={onClose}
+      />
+      <div style={{
+        position: "relative", zIndex: 10,
+        background: "var(--surface)",
+        borderRadius: "var(--r-xl) var(--r-xl) 0 0",
+        boxShadow: "0 -4px 32px rgba(0,0,0,0.12)",
+        width: "100%",
+        maxWidth: 480,
+        padding: "24px 20px",
+        paddingBottom: "max(20px, env(safe-area-inset-bottom))",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--ink)", margin: 0 }}>{title}</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-2xl leading-none w-10 h-10 flex items-center justify-center"
+            style={{
+              width: 32, height: 32, borderRadius: "50%",
+              border: "none", background: "var(--surface-sunk)",
+              color: "var(--ink-muted)", fontSize: 18, lineHeight: 1,
+              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            }}
           >
-            &times;
+            ×
           </button>
         </div>
         {children}

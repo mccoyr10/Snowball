@@ -167,8 +167,8 @@ export default function DebtList({ debts, settings, setSettings, summary, onAdd,
 
       <SnowballSettings settings={settings} setSettings={setSettings} summary={summary} />
 
-      {/* Debts table */}
-      <div className="card">
+      {/* Debts table — desktop only */}
+      <div className="card desktop-debt-table">
         <table className="table">
           <thead>
             <tr>
@@ -247,15 +247,54 @@ export default function DebtList({ debts, settings, setSettings, summary, onAdd,
         </table>
       </div>
 
-      {/* Mobile action buttons (visible only on mobile) */}
-      <div style={{ marginTop: 12, display: "none" }} className="mobile-debt-actions">
-        {sorted.map(d => (
-          <div key={d.id} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-            <span style={{ flex: 1, fontSize: 14, color: "var(--ink)", fontWeight: 500, alignSelf: "center" }}>{d.name}</span>
-            <button className="btn sm" onClick={() => onEdit(d)}>Edit</button>
-            <button className="btn sm" style={{ color: "var(--danger)" }} onClick={() => onDelete(d.id)}>Delete</button>
+      {/* Mobile card list (visible only on mobile, replaces hidden table actions) */}
+      <div className="mobile-debt-cards">
+        {sorted.map((d, i) => {
+          const isTarget = i === 0;
+          const paidPct = d.startingBalance && d.startingBalance > 0
+            ? Math.min(100, Math.max(0, Math.round((1 - d.balance / d.startingBalance) * 100)))
+            : 0;
+          const payoff = summary.debtPayoffDates[d.id];
+          const interest = summary.debtInterestTotals[d.id] || 0;
+          return (
+            <div key={d.id} style={{
+              background: "var(--surface)", border: "1px solid var(--line)",
+              borderRadius: "var(--r-lg)", padding: "14px 16px", marginBottom: 10,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                <ProgressRing size={40} stroke={4} value={paidPct / 100} color={isTarget ? "var(--info)" : "var(--sage)"} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: 14 }}>{d.name}</div>
+                  <div style={{ fontSize: 12, color: "var(--ink-muted)", marginTop: 2 }}>
+                    {isTarget && <span className="tag info" style={{ marginRight: 6 }}>Next up</span>}
+                    {paidPct}% paid
+                  </div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: 16 }}>{formatCurrency(d.balance)}</div>
+                  <div style={{ fontSize: 12, color: "var(--ink-muted)" }}>{d.apr.toFixed(2)}% APR</div>
+                </div>
+              </div>
+              <div style={{
+                display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
+                fontSize: 12.5, color: "var(--ink-muted)", marginBottom: 12,
+              }}>
+                <div>Min: <span style={{ color: "var(--ink)", fontWeight: 500 }}>{formatCurrency(d.minPayment)}/mo</span></div>
+                <div>Interest: <span style={{ color: "var(--warn)", fontWeight: 500 }}>{formatCurrency(interest)}</span></div>
+                <div>Payoff: <span style={{ color: "var(--ink)", fontWeight: 500 }}>{payoff ? formatMonth(payoff) : "—"}</span></div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn sm" style={{ flex: 1, justifyContent: "center" }} onClick={() => onEdit(d)}>Edit</button>
+                <button className="btn sm" style={{ flex: 1, justifyContent: "center", color: "var(--danger)", borderColor: "var(--danger-soft)" }} onClick={() => onDelete(d.id)}>Delete</button>
+              </div>
+            </div>
+          );
+        })}
+        {sorted.length === 0 && (
+          <div style={{ textAlign: "center", color: "var(--ink-faint)", padding: "40px 16px", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "var(--r-lg)" }}>
+            No debts yet — tap Add debt above.
           </div>
-        ))}
+        )}
       </div>
 
       {/* Composition */}
@@ -272,8 +311,10 @@ export default function DebtList({ debts, settings, setSettings, summary, onAdd,
       )}
 
       <style>{`
+        .mobile-debt-cards { display: none; }
         @media (max-width: 640px) {
-          .mobile-debt-actions { display: block !important; }
+          .mobile-debt-cards { display: block; }
+          .desktop-debt-table { display: none; }
         }
       `}</style>
     </div>
