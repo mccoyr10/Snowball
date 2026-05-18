@@ -152,9 +152,9 @@ export default function DashboardTab({ debts, settings, summary, schedule, setAc
         marginBottom: 24,
         display: "flex",
         justifyContent: "space-between",
-        alignItems: "baseline",
+        alignItems: "center",
         flexWrap: "wrap",
-        gap: 12,
+        gap: 16,
       }}>
         <div>
           <div style={{ fontSize: 13, color: "var(--ink-muted)", marginBottom: 4 }}>
@@ -168,12 +168,31 @@ export default function DashboardTab({ debts, settings, summary, schedule, setAc
             One debt at a time.
           </h1>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <div className="tag sage" style={{ padding: "5px 12px", fontSize: 12 }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: -2, marginRight: 4 }}>
-              <polyline points="20,6 9,17 4,12"/>
-            </svg>
-            {daysOnTrack} days on track
+
+        {/* Prominent payoff date */}
+        <div style={{
+          background: "linear-gradient(135deg, var(--info-soft) 0%, var(--surface) 100%)",
+          border: "1px solid #c7d8f8",
+          borderRadius: 14,
+          padding: "14px 20px",
+          textAlign: "center",
+          minWidth: 160,
+        }}>
+          <div style={{
+            fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase",
+            fontWeight: 700, color: "var(--info)", marginBottom: 4,
+          }}>
+            Debt-free by
+          </div>
+          <div style={{
+            fontFamily: "var(--font-display)",
+            fontSize: 28, fontWeight: 400, color: "var(--ink)",
+            letterSpacing: "-0.02em", lineHeight: 1,
+          }}>
+            {summary.projectedPayoffDate ? formatMonth(summary.projectedPayoffDate) : "—"}
+          </div>
+          <div style={{ fontSize: 11.5, color: "var(--ink-muted)", marginTop: 4 }}>
+            {summary.monthsRemaining} month{summary.monthsRemaining !== 1 ? "s" : ""} away
           </div>
         </div>
       </div>
