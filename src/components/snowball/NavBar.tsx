@@ -109,7 +109,7 @@ export default function NavBar({ activeTab, setActiveTab, saveStatus, displayNam
       <aside className="sidebar">
         <div className="brand">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Exhale Debt" style={{ height: 44, display: "block" }} />
+          <img src="/exhale-debt-logo.png" alt="Exhale Debt" style={{ height: 44, display: "block" }} />
         </div>
 
         <nav className="nav">
