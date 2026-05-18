@@ -108,13 +108,8 @@ export default function NavBar({ activeTab, setActiveTab, saveStatus, displayNam
       {/* Desktop Sidebar */}
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark">
-            <ExhaleLogo size={30} />
-          </div>
-          <div className="brand-name">
-            <span style={{ color: "#6BAD9E" }}>Exhale</span>
-            <span style={{ color: "var(--ink)" }}> Debt</span>
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Exhale Debt" style={{ height: 40, display: "block" }} />
         </div>
 
         <nav className="nav">
