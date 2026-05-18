@@ -9,9 +9,10 @@ interface ActualPaymentsProps {
   actuals: UIActual[];
   onSetActual: (month: string, debtId: string, amount: number) => void;
   onGoToDebts?: () => void;
+  planStartDate?: string;
 }
 
-export default function ActualPayments({ debts, schedule, actuals, onSetActual, onGoToDebts }: ActualPaymentsProps) {
+export default function ActualPayments({ debts, schedule, actuals, onSetActual, onGoToDebts, planStartDate }: ActualPaymentsProps) {
   const [selectedMonth, setSelectedMonth] = useState(todayYYYYMM());
 
   if (debts.length === 0) {
@@ -38,8 +39,9 @@ export default function ActualPayments({ debts, schedule, actuals, onSetActual, 
   }
 
   const months = schedule.length > 0 ? schedule.map(e => e.month) : [];
-  const canGoPrev = months.length === 0 || selectedMonth > months[0];
+  const canGoPrev = true;
   const canGoNext = selectedMonth < todayYYYYMM();
+  const isBeforeStart = planStartDate ? selectedMonth < planStartDate : false;
 
   function getPlanned(debtId: string): number {
     const entry = schedule.find(e => e.month === selectedMonth);
@@ -169,6 +171,17 @@ export default function ActualPayments({ debts, schedule, actuals, onSetActual, 
               {cumulativeVariance >= 0 ? "You've paid more than planned" : "You've paid less than planned"}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Pre-start-date warning */}
+      {isBeforeStart && (
+        <div style={{
+          background: "var(--warn-soft)", border: "1px solid var(--warn-soft)",
+          borderRadius: "var(--r-md)", padding: "10px 14px",
+          fontSize: 13, color: "var(--warn)", marginBottom: 16,
+        }}>
+          This month is before your plan start date. Payments logged here won't affect your projected schedule.
         </div>
       )}
 

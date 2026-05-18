@@ -30,6 +30,7 @@ import OnboardingModal, { shouldShowOnboarding } from "@/components/snowball/Onb
 import HouseholdModal from "@/components/snowball/HouseholdModal";
 import PaywallGate from "@/components/PaywallGate";
 import TrialBanner from "@/components/snowball/TrialBanner";
+import MigrationBanner from "@/components/snowball/MigrationBanner";
 
 function toUIDebt(d: Debt): UIDebt {
   return {
@@ -234,6 +235,7 @@ export default function SnowballApp() {
         actuals={actuals}
         onSetActual={handleSetActual}
         onGoToDebts={() => setActiveTab("debts")}
+        planStartDate={settings.startDate}
       />
     ),
     advisor: <ChatPanel debts={adjustedDebts} settings={settings} summary={summary} />,
@@ -253,6 +255,9 @@ export default function SnowballApp() {
 
         <div className="main">
           <TrialBanner />
+          {debts.length > 0 && debts.some(d => !d.startingBalance || d.startingBalance === d.balance) && (
+            <MigrationBanner onGoToDebts={() => setActiveTab("debts")} />
+          )}
           <div className="main-inner">
             {tabs[activeTab] ?? tabs["dashboard"]}
           </div>
