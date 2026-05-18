@@ -15,10 +15,20 @@ export default function ActualPayments({ debts, schedule, actuals, onSetActual }
 
   if (debts.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-center">
-        <div className="text-5xl mb-4">✏️</div>
-        <h2 className="text-xl font-semibold text-gray-700 mb-2">No debts yet</h2>
-        <p className="text-gray-400 max-w-xs">Add your debts to start tracking actual payments.</p>
+      <div style={{
+        display: "flex", flexDirection: "column", alignItems: "center",
+        justifyContent: "center", padding: "96px 0", textAlign: "center",
+      }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>✏️</div>
+        <h2 style={{
+          fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 400,
+          color: "var(--ink)", marginBottom: 8, marginTop: 0,
+        }}>
+          No debts yet
+        </h2>
+        <p style={{ color: "var(--ink-muted)", maxWidth: 300, margin: "0 auto" }}>
+          Add your debts to start tracking actual payments.
+        </p>
       </div>
     );
   }
@@ -35,6 +45,22 @@ export default function ActualPayments({ debts, schedule, actuals, onSetActual }
 
   function getActual(debtId: string): number | undefined {
     return actuals.find(a => a.month === selectedMonth && a.debtId === debtId)?.amount;
+  }
+
+  // Compute summary KPIs from all actuals
+  const totalPaid = actuals.reduce((s, a) => s + a.amount, 0);
+  // Approximate principal/interest split from schedule
+  let totalPrincipalApprox = 0;
+  let totalInterestApprox = 0;
+  for (const entry of schedule) {
+    for (const ds of entry.debtSnapshots) {
+      const act = actuals.find(a => a.month === entry.month && a.debtId === ds.debtId);
+      if (act) {
+        const intFrac = ds.payment > 0 ? ds.interestCharge / ds.payment : 0;
+        totalInterestApprox += act.amount * intFrac;
+        totalPrincipalApprox += act.amount * (1 - intFrac);
+      }
+    }
   }
 
   // cumulative variance across all months up to and including selectedMonth
@@ -56,120 +82,161 @@ export default function ActualPayments({ debts, schedule, actuals, onSetActual }
   const totalActual = monthActuals.reduce((s, r) => s + (r.actual ?? 0), 0);
 
   return (
-    <div className="space-y-4">
+    <div>
+      {/* Greeting */}
+      <div className="greeting">
+        <div>
+          <h1>
+            Payment <span className="h1-italic">history.</span>
+          </h1>
+          <p>Every payment you{"'"}ve logged, with principal/interest breakdown.</p>
+        </div>
+      </div>
+
+      {/* KPI grid */}
+      <div className="kpi-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)", marginBottom: 24 }}>
+        <div className="kpi">
+          <div className="kpi-label">Paid (all time)</div>
+          <div className="kpi-value">{formatCurrency(totalPaid)}</div>
+          <div className="kpi-sub">Across {actuals.length} payment{actuals.length !== 1 ? "s" : ""}</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi-label">To principal</div>
+          <div className="kpi-value" style={{ color: "var(--sage-deep)" }}>{formatCurrency(totalPrincipalApprox)}</div>
+          <div className="kpi-sub">
+            {totalPaid > 0 ? ((totalPrincipalApprox / totalPaid) * 100).toFixed(0) : 0}% of total
+          </div>
+        </div>
+        <div className="kpi">
+          <div className="kpi-label">To interest</div>
+          <div className="kpi-value warn">{formatCurrency(totalInterestApprox)}</div>
+          <div className="kpi-sub">
+            {totalPaid > 0 ? ((totalInterestApprox / totalPaid) * 100).toFixed(0) : 0}% of total
+          </div>
+        </div>
+      </div>
+
       {/* Month navigator */}
-      <div className="flex items-center justify-between bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3">
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        background: "var(--surface)", border: "1px solid var(--line)",
+        borderRadius: "var(--r-lg)", padding: "12px 20px", marginBottom: 16,
+      }}>
         <button
           onClick={() => setSelectedMonth(prevMonth(selectedMonth))}
           disabled={!canGoPrev}
-          className="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-30 text-gray-600 text-lg"
+          className="btn sm"
+          style={{ opacity: canGoPrev ? 1 : 0.3 }}
         >
-          ‹
+          ‹ Prev
         </button>
-        <span className="text-base font-semibold text-gray-700">{formatMonth(selectedMonth)}</span>
+        <span style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)" }}>
+          {formatMonth(selectedMonth)}
+        </span>
         <button
           onClick={() => setSelectedMonth(nextMonth(selectedMonth))}
           disabled={!canGoNext}
-          className="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-30 text-gray-600 text-lg"
+          className="btn sm"
+          style={{ opacity: canGoNext ? 1 : 0.3 }}
         >
-          ›
+          Next ›
         </button>
       </div>
 
       {/* Cumulative variance banner */}
       {cumulativeVariance !== 0 && (
-        <div className={`rounded-2xl border px-4 py-3 flex items-center gap-3 ${cumulativeVariance >= 0 ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
-          <span className="text-2xl">{cumulativeVariance >= 0 ? "💚" : "⚠"}</span>
+        <div style={{
+          marginBottom: 16,
+          background: cumulativeVariance >= 0 ? "var(--sage-soft)" : "var(--danger-soft)",
+          border: `1px solid ${cumulativeVariance >= 0 ? "var(--sage-soft)" : "var(--danger-soft)"}`,
+          borderRadius: "var(--r-lg)",
+          padding: "12px 16px",
+          display: "flex", alignItems: "center", gap: 12,
+        }}>
+          <span style={{ fontSize: 20 }}>{cumulativeVariance >= 0 ? "💚" : "⚠️"}</span>
           <div>
-            <p className={`text-sm font-semibold ${cumulativeVariance >= 0 ? "text-green-700" : "text-red-700"}`}>
+            <div style={{
+              fontWeight: 600, fontSize: 14,
+              color: cumulativeVariance >= 0 ? "var(--sage-deep)" : "var(--danger)",
+            }}>
               Cumulative variance: {cumulativeVariance >= 0 ? "+" : ""}{formatCurrency(cumulativeVariance)}
-            </p>
-            <p className={`text-xs mt-0.5 ${cumulativeVariance >= 0 ? "text-green-600" : "text-red-600"}`}>
+            </div>
+            <div style={{ fontSize: 12.5, color: "var(--ink-muted)", marginTop: 2 }}>
               {cumulativeVariance >= 0 ? "You've paid more than planned" : "You've paid less than planned"}
-            </p>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Desktop table */}
-      <div className="hidden sm:block overflow-x-auto rounded-2xl border border-gray-100 shadow-sm">
-        <table className="min-w-full text-sm">
+      {/* Payments table */}
+      <div className="card">
+        <div className="card-head">
+          <div className="card-title">Log payments — {formatMonth(selectedMonth)}</div>
+        </div>
+        <table className="table">
           <thead>
-            <tr className="bg-gray-50 border-b border-gray-100">
-              <th className="px-4 py-3 text-left font-semibold text-gray-600">Debt</th>
-              <th className="px-4 py-3 text-right font-semibold text-gray-600">Planned</th>
-              <th className="px-4 py-3 text-right font-semibold text-gray-600">Actual</th>
-              <th className="px-4 py-3 text-right font-semibold text-gray-600">Variance</th>
+            <tr>
+              <th>Debt</th>
+              <th className="right">Planned</th>
+              <th className="right">Actual paid</th>
+              <th className="right">Variance</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody>
             {monthActuals.map(({ debt, planned, actual }) => {
               const variance = actual != null ? actual - planned : null;
               return (
-                <tr key={debt.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-700">{debt.name}</td>
-                  <td className="px-4 py-3 text-right text-gray-500">{formatCurrency(planned)}</td>
-                  <td className="px-4 py-3 text-right">
+                <tr key={debt.id}>
+                  <td style={{ fontWeight: 500 }}>{debt.name}</td>
+                  <td className="num" style={{ color: "var(--ink-muted)" }}>{formatCurrency(planned)}</td>
+                  <td className="num">
                     <input
                       type="number"
                       step="0.01"
                       min="0"
                       value={actual ?? ""}
-                      placeholder={formatCurrency(planned).replace("$", "")}
+                      placeholder={planned.toFixed(2)}
                       onChange={e => onSetActual(selectedMonth, debt.id, Number(e.target.value) || 0)}
-                      className="w-28 text-right border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      style={{
+                        width: 110, textAlign: "right",
+                        border: "1px solid var(--line-strong)",
+                        borderRadius: "var(--r-md)",
+                        padding: "6px 10px",
+                        fontSize: 13.5,
+                        color: "var(--ink)",
+                        background: "var(--surface)",
+                        fontFamily: "var(--font-num)",
+                      }}
+                      onFocus={e => (e.target.style.borderColor = "var(--info)")}
+                      onBlur={e => (e.target.style.borderColor = "var(--line-strong)")}
                     />
                   </td>
-                  <td className={`px-4 py-3 text-right font-medium ${variance == null ? "text-gray-300" : variance >= 0 ? "text-green-600" : "text-red-500"}`}>
+                  <td className="num" style={{
+                    fontWeight: 500,
+                    color: variance == null ? "var(--ink-faint)" : variance >= 0 ? "var(--sage)" : "var(--danger)",
+                  }}>
                     {variance == null ? "—" : `${variance >= 0 ? "+" : ""}${formatCurrency(variance)}`}
                   </td>
                 </tr>
               );
             })}
-            <tr className="bg-gray-50 font-semibold">
-              <td className="px-4 py-3 text-gray-700">Total</td>
-              <td className="px-4 py-3 text-right text-gray-600">{formatCurrency(totalPlanned)}</td>
-              <td className="px-4 py-3 text-right text-gray-700">{formatCurrency(totalActual)}</td>
-              <td className={`px-4 py-3 text-right ${totalActual - totalPlanned >= 0 ? "text-green-600" : "text-red-500"}`}>
-                {totalActual > 0 ? `${totalActual - totalPlanned >= 0 ? "+" : ""}${formatCurrency(totalActual - totalPlanned)}` : "—"}
+            <tr style={{ background: "var(--surface-2)" }}>
+              <td style={{ fontWeight: 600, color: "var(--ink)" }}>Total</td>
+              <td className="num" style={{ fontWeight: 600 }}>{formatCurrency(totalPlanned)}</td>
+              <td className="num" style={{ fontWeight: 600 }}>{formatCurrency(totalActual)}</td>
+              <td className="num" style={{
+                fontWeight: 600,
+                color: totalActual > 0
+                  ? (totalActual - totalPlanned >= 0 ? "var(--sage)" : "var(--danger)")
+                  : "var(--ink-faint)",
+              }}>
+                {totalActual > 0
+                  ? `${totalActual - totalPlanned >= 0 ? "+" : ""}${formatCurrency(totalActual - totalPlanned)}`
+                  : "—"}
               </td>
             </tr>
           </tbody>
         </table>
-      </div>
-
-      {/* Mobile cards */}
-      <div className="sm:hidden space-y-3">
-        {monthActuals.map(({ debt, planned, actual }) => {
-          const variance = actual != null ? actual - planned : null;
-          return (
-            <div key={debt.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <p className="font-semibold text-gray-800">{debt.name}</p>
-                  <p className="text-sm text-gray-400 mt-0.5">Planned: {formatCurrency(planned)}</p>
-                </div>
-                {variance != null && (
-                  <span className={`text-sm font-medium px-2 py-1 rounded-lg ${variance >= 0 ? "bg-green-50 text-green-600" : "bg-red-50 text-red-500"}`}>
-                    {variance >= 0 ? "+" : ""}{formatCurrency(variance)}
-                  </span>
-                )}
-              </div>
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">Actual Payment ($)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={actual ?? ""}
-                  placeholder={String(planned.toFixed(2))}
-                  onChange={e => onSetActual(selectedMonth, debt.id, Number(e.target.value) || 0)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-          );
-        })}
       </div>
     </div>
   );

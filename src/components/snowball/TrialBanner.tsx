@@ -14,7 +14,7 @@ export default function TrialBanner() {
   if (!userDoc || userDoc.subscriptionStatus !== "trialing" || dismissed) return null;
 
   const daysRemaining = getTrialDaysRemaining(userDoc.trialStartedAt);
-  if (daysRemaining > 10) return null; // only show when 10 days or fewer remain
+  if (daysRemaining > 10) return null;
 
   async function handleSubscribe() {
     if (!user) return;
@@ -26,7 +26,7 @@ export default function TrialBanner() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({ email: user.email }),
       });
-      const { url } = await res.json();
+      const { url } = await res.json() as { url?: string };
       if (url) window.location.href = url;
     } catch {
       setLoading(false);
@@ -36,22 +36,47 @@ export default function TrialBanner() {
   const urgent = daysRemaining <= 3;
 
   return (
-    <div className={`${urgent ? "bg-orange-50 border-orange-200" : "bg-blue-50 border-blue-100"} border-b px-4 py-2.5 flex items-center justify-between gap-3`}>
-      <p className={`text-xs font-medium ${urgent ? "text-orange-700" : "text-blue-700"}`}>
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      padding: "10px 20px",
+      background: urgent ? "var(--warn-soft)" : "var(--sage-soft)",
+      border: `1px solid ${urgent ? "var(--warn-soft)" : "var(--sage-soft)"}`,
+      borderRadius: "var(--r-md)",
+      marginBottom: 20,
+      fontSize: 13,
+      color: urgent ? "var(--warn)" : "var(--sage-deep)",
+    }}>
+      <span style={{ fontWeight: 500 }}>
         {daysRemaining === 0
           ? "Your free trial ends today."
           : `${daysRemaining} day${daysRemaining !== 1 ? "s" : ""} left in your free trial.`}
         {" "}Subscribe to keep your plan.
-      </p>
-      <div className="flex items-center gap-2 flex-shrink-0">
+      </span>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
         <button
           onClick={handleSubscribe}
           disabled={loading}
-          className={`text-xs font-semibold px-3 py-1.5 rounded-lg ${urgent ? "bg-orange-600 hover:bg-orange-700 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"} disabled:opacity-50`}
+          className="btn primary"
+          style={{
+            padding: "5px 14px",
+            fontSize: 12.5,
+            opacity: loading ? 0.6 : 1,
+          }}
         >
           {loading ? "…" : "Subscribe"}
         </button>
-        <button onClick={() => setDismissed(true)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">&times;</button>
+        <button
+          onClick={() => setDismissed(true)}
+          style={{
+            background: "none", border: "none", cursor: "pointer",
+            color: "var(--ink-faint)", fontSize: 18, lineHeight: 1,
+          }}
+        >
+          &times;
+        </button>
       </div>
     </div>
   );

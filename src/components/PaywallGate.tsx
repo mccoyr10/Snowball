@@ -17,10 +17,10 @@ export function getTrialDaysRemaining(trialStartedAt: Timestamp | undefined): nu
 }
 
 export function isAccessAllowed(status: SubscriptionStatus | undefined, trialStartedAt: Timestamp | undefined): boolean {
-  if (!status) return true; // grandfathered user
+  if (!status) return true;
   if (status === "active") return true;
   if (status === "trialing") return getTrialDaysRemaining(trialStartedAt) > 0;
-  return false; // incomplete, past_due, canceled
+  return false;
 }
 
 export default function PaywallGate({ children }: { children: React.ReactNode }) {
@@ -31,7 +31,6 @@ export default function PaywallGate({ children }: { children: React.ReactNode })
   const searchParams = useSearchParams();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // When Stripe redirects back with ?subscribed=true, poll until status updates
   useEffect(() => {
     if (searchParams.get("subscribed") !== "true") return;
     setProcessing(true);
@@ -45,9 +44,9 @@ export default function PaywallGate({ children }: { children: React.ReactNode })
       }
     }, 2000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Stop polling once access is granted
   useEffect(() => {
     if (processing && isAccessAllowed(userDoc?.subscriptionStatus, userDoc?.trialStartedAt)) {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -63,14 +62,28 @@ export default function PaywallGate({ children }: { children: React.ReactNode })
 
   if (processing) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 max-w-md w-full text-center space-y-6">
-          <div className="text-5xl">❄️</div>
-          <h2 className="text-2xl font-bold text-gray-800">Activating your subscription…</h2>
-          <p className="text-gray-500 text-sm">This usually takes just a moment. Please wait.</p>
-          <div className="flex justify-center">
-            <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      <div className="paywall-wrap">
+        <div className="paywall-card">
+          <div style={{ fontSize: 48, marginBottom: 16 }}>❄️</div>
+          <h2 style={{
+            fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 400,
+            color: "var(--ink)", margin: "0 0 12px",
+          }}>
+            Activating your subscription…
+          </h2>
+          <p style={{ color: "var(--ink-muted)", fontSize: 14 }}>
+            This usually takes just a moment. Please wait.
+          </p>
+          <div style={{ display: "flex", justifyContent: "center", marginTop: 24 }}>
+            <div style={{
+              width: 32, height: 32,
+              border: "3px solid var(--info)",
+              borderTopColor: "transparent",
+              borderRadius: "50%",
+              animation: "spin 0.8s linear infinite",
+            }} />
           </div>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       </div>
     );
@@ -91,10 +104,10 @@ export default function PaywallGate({ children }: { children: React.ReactNode })
         body: JSON.stringify({ email: user.email }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+        const data = await res.json().catch(() => ({})) as { error?: string };
         throw new Error(data.error || "Could not start checkout.");
       }
-      const { url } = await res.json();
+      const { url } = await res.json() as { url: string };
       window.location.href = url;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
@@ -104,48 +117,101 @@ export default function PaywallGate({ children }: { children: React.ReactNode })
 
   const isIncomplete = userDoc.subscriptionStatus === "incomplete";
   const daysRemaining = getTrialDaysRemaining(userDoc.trialStartedAt);
-  const isExpired = userDoc.subscriptionStatus === "past_due" || userDoc.subscriptionStatus === "canceled" || (userDoc.subscriptionStatus === "trialing" && daysRemaining === 0);
+  const isExpired = userDoc.subscriptionStatus === "past_due" ||
+    userDoc.subscriptionStatus === "canceled" ||
+    (userDoc.subscriptionStatus === "trialing" && daysRemaining === 0);
+
+  const features = [
+    "Full snowball & schedule planner",
+    "Track actual payments vs. plan",
+    "What-If scenario planner",
+    "AI financial advisor",
+    "Household sharing with partner",
+  ];
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 max-w-md w-full text-center space-y-6">
-        <div className="text-5xl">❄️</div>
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">
-            {isIncomplete ? "Complete your setup" : isExpired ? "Your trial has ended" : "Subscribe to continue"}
-          </h2>
-          <p className="text-gray-500 text-sm leading-relaxed">
-            {isIncomplete
-              ? "Start your 14-day free trial to access Snowball. Cancel any time."
-              : isExpired
-              ? "Your free trial is over. Subscribe to keep tracking your debt payoff progress."
-              : "You've been using Snowball during your trial. Subscribe to keep full access."}
-          </p>
+    <div className="paywall-wrap">
+      <div className="paywall-card">
+        {/* Brand mark */}
+        <div style={{
+          width: 56, height: 56,
+          borderRadius: 14,
+          background: "linear-gradient(135deg, var(--info) 0%, #4a7cc8 100%)",
+          display: "grid", placeItems: "center",
+          margin: "0 auto 20px",
+          color: "#fff",
+        }}>
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/>
+            <line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/>
+            <circle cx="12" cy="12" r="2"/>
+          </svg>
         </div>
 
-        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-left space-y-2">
-          {["Full snowball & schedule planner", "Track actual payments vs. plan", "What-If scenario planner", "AI financial advisor", "Household sharing with partner"].map(f => (
-            <div key={f} className="flex items-center gap-2 text-sm text-gray-700">
-              <span className="text-green-500 font-bold">✓</span> {f}
+        <h2 style={{
+          fontFamily: "var(--font-display)", fontSize: 30, fontWeight: 400,
+          color: "var(--ink)", margin: "0 0 8px",
+        }}>
+          {isIncomplete ? "Complete your setup" : isExpired ? "Your trial has ended" : "Subscribe to continue"}
+        </h2>
+        <p style={{ color: "var(--ink-muted)", fontSize: 14, lineHeight: 1.6, margin: "0 0 24px" }}>
+          {isIncomplete
+            ? "Start your 14-day free trial to access Snowball. Cancel any time."
+            : isExpired
+            ? "Your free trial is over. Subscribe to keep tracking your debt payoff progress."
+            : "You've been using Snowball during your trial. Subscribe to keep full access."}
+        </p>
+
+        <div className="paywall-features">
+          {features.map(f => (
+            <div key={f} style={{
+              display: "flex", alignItems: "center", gap: 10,
+              fontSize: 13.5, color: "var(--ink-2)", padding: "5px 0",
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--sage)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20,6 9,17 4,12"/>
+              </svg>
+              {f}
             </div>
           ))}
         </div>
 
-        <div>
-          <p className="text-3xl font-bold text-gray-800 mb-1">$4.99<span className="text-base font-normal text-gray-400">/month</span></p>
-          <p className="text-xs text-gray-400">14 days free, then $4.99/month. Cancel any time.</p>
+        <div style={{ margin: "20px 0" }}>
+          <div style={{
+            fontSize: 32, fontWeight: 700, color: "var(--ink)",
+            fontVariantNumeric: "tabular-nums",
+          }}>
+            $4.99
+            <span style={{ fontSize: 16, fontWeight: 400, color: "var(--ink-muted)" }}>/month</span>
+          </div>
+          <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 4 }}>
+            14 days free, then $4.99/month. Cancel any time.
+          </div>
         </div>
 
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {error && (
+          <p style={{ color: "var(--danger)", fontSize: 13, marginBottom: 12 }}>{error}</p>
+        )}
 
         <button
           onClick={handleSubscribe}
           disabled={loading}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl py-4 font-semibold text-base"
+          className="btn primary"
+          style={{
+            width: "100%", justifyContent: "center",
+            padding: "14px 20px", fontSize: 15,
+            opacity: loading ? 0.6 : 1,
+          }}
         >
-          {loading ? "Redirecting to checkout…" : isIncomplete ? "Start free trial →" : "Subscribe now →"}
+          {loading
+            ? "Redirecting to checkout…"
+            : isIncomplete
+            ? "Start free trial →"
+            : "Subscribe now →"}
         </button>
-        <p className="text-xs text-gray-400">Secure payment via Stripe</p>
+        <p style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 12 }}>
+          Secure payment via Stripe
+        </p>
       </div>
     </div>
   );
