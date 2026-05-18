@@ -85,8 +85,7 @@ export default function ActualPayments({ debts, schedule, actuals, onSetActual }
   const sorted = [...debts].sort((a, b) => Number(a.balance) - Number(b.balance));
   const target = sorted[0];
 
-  const months = schedule.length > 0 ? schedule.map(e => e.month) : [];
-  const canGoPrev = months.length === 0 || selectedMonth > months[0];
+  const canGoPrev = true; // always allow going back to log or review past months
   const canGoNext = selectedMonth < todayYYYYMM();
 
   function changeMonth(month: string) {
