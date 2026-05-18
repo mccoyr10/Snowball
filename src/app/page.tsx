@@ -76,7 +76,7 @@ export default function Home() {
         </p>
 
         <p style={{ fontSize: 13.5, color: "var(--sage-deep)", fontWeight: 500, marginBottom: 32 }}>
-          Start free — no credit card required. 14-day trial, then $4.99/mo.
+          14-day free trial, then $4.99/mo. Cancel anytime.
         </p>
 
         {/* CTAs */}
