@@ -133,7 +133,7 @@ export default function SnowballApp() {
         balance: debt.balance,
         interestRate: debt.apr,
         minimumPayment: debt.minPayment,
-        startingBalance: debt.balance,
+        startingBalance: debt.startingBalance ?? debt.balance,
       };
       if (editingDebt) {
         await updateDebt(householdId, debt.id, firestoreData);
