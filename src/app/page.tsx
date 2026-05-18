@@ -24,9 +24,9 @@ export default function Home() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center bg-gray-50 min-h-screen px-4">
       <div className="max-w-xl w-full text-center">
-        <h1 className="text-4xl font-bold text-blue-800 mb-4">Snowball</h1>
+        <h1 className="text-4xl font-bold text-blue-800 mb-4">Exhale Debt</h1>
         <p className="text-lg text-gray-600 mb-8">
-          Pay off your debt faster with the snowball method. Track every balance,
+          Pay off your debt and breathe easy. Track every balance,
           visualize your payoff timeline, and celebrate every win.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">

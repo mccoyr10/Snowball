@@ -183,7 +183,7 @@ export default function SnowballApp() {
     return (
       <div className="loading-screen">
         <div className="loading-inner">
-          <span className="loading-icon">❄️</span>
+          <span className="loading-icon">🌬️</span>
           <p className="loading-text">Loading your plan…</p>
         </div>
       </div>

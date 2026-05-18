@@ -119,7 +119,7 @@ export default function ChatPanel({ debts, settings, summary }: ChatPanelProps) 
               </svg>
             </div>
             <div>
-              <div style={{ fontSize: 14.5, fontWeight: 600, color: "var(--ink)" }}>Snowball Advisor</div>
+              <div style={{ fontSize: 14.5, fontWeight: 600, color: "var(--ink)" }}>Exhale Advisor</div>
               <div style={{ fontSize: 12, color: "var(--ink-muted)" }}>
                 <span style={{ color: "var(--sage)" }}>●</span> Online · Tailored to your plan
               </div>
@@ -213,7 +213,7 @@ export default function ChatPanel({ debts, settings, summary }: ChatPanelProps) 
           <line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
         <div>
-          <strong>Not financial advice.</strong> Snowball Advisor uses your data to suggest strategies, but final decisions are yours.
+          <strong>Not financial advice.</strong> Exhale Advisor uses your data to suggest strategies, but final decisions are yours.
           Consider talking to a licensed financial planner for major changes.
         </div>
       </div>

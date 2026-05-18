@@ -9,6 +9,29 @@ interface NavBarProps {
   onOpenHousehold: () => void;
 }
 
+// Exhale Debt logo mark — inline SVG recreation of the wind/cloud exhale motif
+function ExhaleLogo({ size = 32 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Cloud: two overlapping rounded humps */}
+      <path
+        d="M14 38 C14 29 20 24 27 24 C27 17 33 12 41 12 C49 12 55 17 55 24 C59 22 64 26 64 32 C64 37 60 40 55 40"
+        stroke="#6BAD9E" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"
+      />
+      {/* Exhale sweep — broad wind arc flowing right */}
+      <path
+        d="M2 50 C14 42 28 46 40 52 C50 57 58 50 58 43"
+        stroke="#6BAD9E" strokeWidth="4" strokeLinecap="round"
+      />
+      {/* Curl at end of exhale */}
+      <path
+        d="M58 43 C60 35 54 30 48 33"
+        stroke="#6BAD9E" strokeWidth="4" strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 // Inline SVG icons
 function IconLayout({ className }: { className?: string }) {
   return (
@@ -86,9 +109,12 @@ export default function NavBar({ activeTab, setActiveTab, saveStatus, displayNam
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">
-            <IconSnowflake />
+            <ExhaleLogo size={30} />
           </div>
-          <div className="brand-name">Snowball</div>
+          <div className="brand-name">
+            <span style={{ color: "#6BAD9E" }}>Exhale</span>
+            <span style={{ color: "var(--ink)" }}> Debt</span>
+          </div>
         </div>
 
         <nav className="nav">

@@ -3,8 +3,8 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 
 export const metadata: Metadata = {
-  title: "Snowball — Debt Payoff Tracker",
-  description: "Track your debts, build your snowball, and reach financial freedom.",
+  title: "Exhale Debt — Debt Payoff Tracker",
+  description: "Pay off your debt and breathe easy. Track every balance, build your snowball plan, and reach financial freedom.",
 };
 
 export default function RootLayout({

@@ -6,8 +6,8 @@ const STORAGE_KEY = "snowball_onboarding_v1";
 
 const STEPS = [
   {
-    icon: "❄️",
-    title: "Welcome to Snowball",
+    icon: "🌬️",
+    title: "Welcome to Exhale Debt",
     body: "Your personal debt payoff planner. We'll help you get out of debt faster using the snowball method — attacking the smallest balance first so you build momentum along the way.",
     tip: null,
   },

@@ -111,7 +111,7 @@ export default function PayoffSchedule({ debts, schedule }: PayoffScheduleProps)
             aria-pressed={view === "snowball" ? "true" : "false"}
             onClick={() => setView("snowball")}
           >
-            Snowball only
+            Exhale plan
           </button>
           <button
             className="pill"
@@ -128,7 +128,7 @@ export default function PayoffSchedule({ debts, schedule }: PayoffScheduleProps)
         <div className="chart-legend">
           <span>
             <span className="legend-dot" style={{ background: "var(--info)" }} />
-            Snowball plan
+            Exhale plan
           </span>
           {view === "compare" && (
             <span>
