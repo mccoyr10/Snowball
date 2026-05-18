@@ -138,7 +138,9 @@ export default function SnowballApp() {
         balance: debt.balance,
         interestRate: debt.apr,
         minimumPayment: debt.minPayment,
-        startingBalance: debt.balance,
+        // Use the original balance the user entered; on edits keep whatever is
+        // already stored unless the form explicitly changed it.
+        startingBalance: debt.startingBalance ?? debt.balance,
       };
       if (editingDebt) {
         await updateDebt(householdId, debt.id, firestoreData);
