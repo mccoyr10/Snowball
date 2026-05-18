@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Teal background -->
+  <rect width="512" height="512" fill="#7CB9AD" rx="90"/>
+  <!--
+    Logo mark from logo.svg (viewBox 0 0 420 200).
+    Mark bounding box: x 64–198 (w=134), y 50–140 (h=90).
+    Center of mark: (131, 95). Scaled 2.5× and centered in 512×512.
+    translate(-71.5, 5) scale(2.5) maps mark center → (256, 242).
+    stroke-width 4 × scale 2.5 = 10px rendered, matching logo proportions.
+  -->
+  <g transform="translate(-71.5, 5) scale(2.5)" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- Cloud arc (source of the breath) -->
+    <path d="M100 110 C100 88 110 76 124 76 C124 60 136 50 152 50 C168 50 180 60 180 76 C188 72 198 78 198 90 C198 100 190 106 180 106"/>
+    <!-- Exhale sweep — the breath of air flowing outward -->
+    <path d="M64 130 C82 118 106 122 126 132 C144 140 162 134 170 122"/>
+    <!-- Curl at the tip of the exhale -->
+    <path d="M170 122 C176 110 170 100 160 104"/>
+  </g>
+</svg>

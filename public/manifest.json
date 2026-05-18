@@ -1,0 +1,24 @@
+{
+  "name": "Exhale Debt",
+  "short_name": "Exhale Debt",
+  "description": "Pay off your debt faster with the snowball method.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f6f8fa",
+  "theme_color": "#7CB9AD",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
