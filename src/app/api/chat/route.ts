@@ -1,33 +1,46 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { getAdminAuth } from "@/lib/firebase-admin";
 
 const MAX_MESSAGES = 40;
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_CONTEXT_LENGTH = 2000;
 
-async function verifyFirebaseToken(idToken: string): Promise<boolean> {
-  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
-  if (!apiKey) return false;
+// Per-user rate limiting: max 30 requests per hour
+const RATE_LIMIT = 30;
+const RATE_WINDOW_MS = 60 * 60 * 1000;
+const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
+
+function checkRateLimit(uid: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(uid);
+  if (!entry || now - entry.windowStart > RATE_WINDOW_MS) {
+    rateLimitMap.set(uid, { count: 1, windowStart: now });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT) return false;
+  entry.count++;
+  return true;
+}
+
+async function verifyToken(idToken: string): Promise<string | null> {
   try {
-    const res = await fetch(
-      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken }),
-      }
-    );
-    return res.ok;
+    const decoded = await getAdminAuth().verifyIdToken(idToken);
+    return decoded.uid;
   } catch {
-    return false;
+    return null;
   }
 }
 
 export async function POST(request: Request) {
-  // Verify Firebase auth token
   const authHeader = request.headers.get("Authorization");
   const idToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
-  if (!idToken || !(await verifyFirebaseToken(idToken))) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!idToken) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const uid = await verifyToken(idToken);
+  if (!uid) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (!checkRateLimit(uid)) {
+    return Response.json({ error: "Too many requests. Please wait before sending more messages." }, { status: 429 });
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;

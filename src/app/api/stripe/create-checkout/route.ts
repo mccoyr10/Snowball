@@ -1,20 +1,10 @@
 import Stripe from "stripe";
+import { getAdminAuth } from "@/lib/firebase-admin";
 
-async function verifyFirebaseToken(idToken: string): Promise<string | null> {
-  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
-  if (!apiKey) return null;
+async function verifyToken(idToken: string): Promise<string | null> {
   try {
-    const res = await fetch(
-      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken }),
-      }
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.users?.[0]?.localId ?? null;
+    const decoded = await getAdminAuth().verifyIdToken(idToken);
+    return decoded.uid;
   } catch {
     return null;
   }
@@ -22,7 +12,7 @@ async function verifyFirebaseToken(idToken: string): Promise<string | null> {
 
 export async function POST(request: Request) {
   const token = request.headers.get("Authorization")?.slice(7);
-  const uid = token ? await verifyFirebaseToken(token) : null;
+  const uid = token ? await verifyToken(token) : null;
   if (!uid) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const stripeKey = process.env.STRIPE_SECRET_KEY;
