@@ -177,10 +177,10 @@ export default function SnowballApp() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-4xl mb-4">❄️</div>
-          <p className="text-gray-500 text-sm">Loading your plan…</p>
+      <div className="loading-screen">
+        <div className="loading-inner">
+          <span className="loading-icon">❄️</span>
+          <p className="loading-text">Loading your plan…</p>
         </div>
       </div>
     );
@@ -216,7 +216,7 @@ export default function SnowballApp() {
 
   return (
     <PaywallGate>
-      <div className="min-h-screen bg-gray-50">
+      <div className="app">
         <NavBar
           activeTab={activeTab}
           setActiveTab={setActiveTab}
@@ -225,32 +225,34 @@ export default function SnowballApp() {
           onSignOut={signOut}
           onOpenHousehold={() => setShowHousehold(true)}
         />
-        <TrialBanner />
 
-        <main className="max-w-5xl mx-auto px-4 py-6 pb-24 sm:pb-6">
-          {tabs[activeTab] ?? tabs["dashboard"]}
-        </main>
-
-        <Modal
-          open={modalOpen}
-          onClose={() => { setModalOpen(false); setEditingDebt(null); }}
-          title={editingDebt ? "Edit Debt" : "Add Debt"}
-        >
-          <DebtForm
-            initial={editingDebt}
-            onSave={handleSaveDebt}
-            onClose={() => { setModalOpen(false); setEditingDebt(null); }}
-          />
-        </Modal>
-
-        {showOnboarding && (
-          <OnboardingModal onComplete={() => setShowOnboarding(false)} />
-        )}
-
-        {showHousehold && (
-          <HouseholdModal onClose={() => setShowHousehold(false)} />
-        )}
+        <div className="main">
+          <TrialBanner />
+          <div className="main-inner">
+            {tabs[activeTab] ?? tabs["dashboard"]}
+          </div>
+        </div>
       </div>
+
+      <Modal
+        open={modalOpen}
+        onClose={() => { setModalOpen(false); setEditingDebt(null); }}
+        title={editingDebt ? "Edit Debt" : "Add Debt"}
+      >
+        <DebtForm
+          initial={editingDebt}
+          onSave={handleSaveDebt}
+          onClose={() => { setModalOpen(false); setEditingDebt(null); }}
+        />
+      </Modal>
+
+      {showOnboarding && (
+        <OnboardingModal onComplete={() => setShowOnboarding(false)} />
+      )}
+
+      {showHousehold && (
+        <HouseholdModal onClose={() => setShowHousehold(false)} />
+      )}
     </PaywallGate>
   );
 }
