@@ -4,14 +4,14 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useDebts } from "@/hooks/useDebts";
 import { useStrategy } from "@/hooks/useStrategy";
-import { useActuals } from "@/hooks/useActuals";
+import { usePayments } from "@/hooks/usePayments";
 import {
   addDebt, updateDebt, deleteDebt,
-  setStrategy, setActual, deleteActual,
+  setStrategy, addPayment, updatePayment, deletePayment,
 } from "@/lib/firestore";
 import {
   buildSnowballSchedule, computeActualAdjustedDebts, calculateSummary,
-  todayYYYYMM,
+  allocatePaymentsToDebts, todayYYYYMM,
   type UIDebt, type UISettings,
 } from "@/lib/snowball";
 import type { Debt } from "@/types";
@@ -52,7 +52,7 @@ export default function SnowballApp() {
 
   const { debts: firestoreDebts, loading: debtsLoading } = useDebts(householdId);
   const { strategy, loading: strategyLoading } = useStrategy(householdId);
-  const { actuals, loading: actualsLoading } = useActuals(householdId);
+  const { payments, loading: paymentsLoading } = usePayments(householdId);
 
   const [activeTab, setActiveTab] = useState("dashboard");
   const [modalOpen, setModalOpen] = useState(false);
@@ -121,7 +121,7 @@ export default function SnowballApp() {
     });
   }
 
-  const loading = debtsLoading || strategyLoading || actualsLoading;
+  const loading = debtsLoading || strategyLoading || paymentsLoading;
 
   // Show onboarding only for genuinely new users: householdId must be loaded
   // (rules out the brief window where useDebts(null) returns empty before auth resolves)
@@ -132,10 +132,10 @@ export default function SnowballApp() {
   }, [householdId, loading, firestoreDebts.length]);
 
   const debts = firestoreDebts.map(toUIDebt);
-  // Two-pass calculation: build a preliminary schedule so computeActualAdjustedDebts
-  // has month-by-month entries to apply interest + scheduled payments against.
+  // Two-pass calculation: prelim schedule → allocate payments → adjust debts → final schedule
   const prelimSchedule = buildSnowballSchedule(debts, settings);
-  const { adjustedDebts } = computeActualAdjustedDebts(debts, prelimSchedule, actuals);
+  const allocatedActuals = allocatePaymentsToDebts(payments, prelimSchedule, debts);
+  const { adjustedDebts } = computeActualAdjustedDebts(debts, prelimSchedule, allocatedActuals);
   const schedule = buildSnowballSchedule(adjustedDebts, settings);
   const summary = calculateSummary(adjustedDebts, schedule, settings);
 
@@ -186,16 +186,30 @@ export default function SnowballApp() {
     }
   }
 
-  async function handleSetActual(month: string, debtId: string, amount: number) {
+  async function handleAddPayment(month: string, amount: number) {
+    if (!householdId || amount <= 0) return;
+    try {
+      await addPayment(householdId, month, amount);
+    } catch {
+      addToast("Failed to save payment", "error");
+    }
+  }
+
+  async function handleUpdatePayment(id: string, amount: number) {
     if (!householdId) return;
     try {
-      if (amount === 0) {
-        await deleteActual(householdId, month, debtId);
-      } else {
-        await setActual(householdId, month, debtId, amount);
-      }
+      await updatePayment(householdId, id, amount);
     } catch {
-      // silent — actuals are best-effort
+      addToast("Failed to update payment", "error");
+    }
+  }
+
+  async function handleDeletePayment(id: string) {
+    if (!householdId) return;
+    try {
+      await deletePayment(householdId, id);
+    } catch {
+      addToast("Failed to delete payment", "error");
     }
   }
 
@@ -230,10 +244,13 @@ export default function SnowballApp() {
     schedule: <PayoffSchedule debts={adjustedDebts} schedule={schedule} onGoToDebts={() => setActiveTab("debts")} />,
     actuals: (
       <ActualPayments
-        debts={adjustedDebts}
-        schedule={schedule}
-        actuals={actuals}
-        onSetActual={handleSetActual}
+        debts={debts}
+        schedule={prelimSchedule}
+        payments={payments}
+        allocatedActuals={allocatedActuals}
+        onAddPayment={handleAddPayment}
+        onUpdatePayment={handleUpdatePayment}
+        onDeletePayment={handleDeletePayment}
         onGoToDebts={() => setActiveTab("debts")}
         planStartDate={settings.startDate}
       />
