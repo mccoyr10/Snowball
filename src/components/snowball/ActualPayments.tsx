@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { formatCurrency, formatMonth, prevMonth, nextMonth, todayYYYYMM, type UIDebt, type UIActual, type ScheduleEntry } from "@/lib/snowball";
 
 interface ActualPaymentsProps {
@@ -10,6 +10,72 @@ interface ActualPaymentsProps {
   onSetActual: (month: string, debtId: string, amount: number) => void;
   onGoToDebts?: () => void;
   planStartDate?: string;
+}
+
+// Individual row with local input state so decimal entry works correctly.
+// Saves to Firestore only on blur or Enter, not on every keystroke.
+function DebtRow({
+  debt, planned, savedExtra, month, onSetActual,
+}: {
+  debt: UIDebt;
+  planned: number;
+  savedExtra: number | undefined;
+  month: string;
+  onSetActual: (month: string, debtId: string, amount: number) => void;
+}) {
+  const [localValue, setLocalValue] = useState(savedExtra != null ? String(savedExtra) : "");
+  const [saved, setSaved] = useState(false);
+
+  // Keep local value in sync when savedExtra changes from outside (e.g. another device)
+  const prevSaved = savedExtra != null ? savedExtra : null;
+  if (savedExtra != null && localValue === "" && prevSaved !== null) {
+    setLocalValue(String(savedExtra));
+  }
+
+  function commit(raw: string) {
+    const amount = parseFloat(raw) || 0;
+    onSetActual(month, debt.id, amount);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  }
+
+  const extra = parseFloat(localValue) || 0;
+  const total = planned + extra;
+
+  return (
+    <tr>
+      <td style={{ fontWeight: 500 }}>{debt.name}</td>
+      <td className="num" style={{ color: "var(--ink-muted)" }}>{formatCurrency(planned)}</td>
+      <td className="num">
+        <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={localValue}
+            placeholder="0.00"
+            onChange={e => setLocalValue(e.target.value)}
+            onBlur={e => commit(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") { commit(localValue); (e.target as HTMLInputElement).blur(); } }}
+            style={{
+              width: 100, textAlign: "right",
+              border: `1px solid ${saved ? "var(--sage)" : "var(--line-strong)"}`,
+              borderRadius: "var(--r-md)",
+              padding: "6px 10px",
+              fontSize: 13.5,
+              color: "var(--ink)",
+              background: "var(--surface)",
+              fontFamily: "var(--font-num)",
+              transition: "border-color 0.2s",
+            }}
+            onFocus={e => (e.target.style.borderColor = "var(--info)")}
+          />
+          {saved && <span style={{ fontSize: 12, color: "var(--sage)", fontWeight: 500 }}>✓</span>}
+        </div>
+      </td>
+      <td className="num" style={{ color: "var(--ink-muted)" }}>{formatCurrency(total)}</td>
+    </tr>
+  );
 }
 
 export default function ActualPayments({ debts, schedule, actuals, onSetActual, onGoToDebts, planStartDate }: ActualPaymentsProps) {
@@ -38,7 +104,6 @@ export default function ActualPayments({ debts, schedule, actuals, onSetActual, 
     );
   }
 
-  const months = schedule.length > 0 ? schedule.map(e => e.month) : [];
   const canGoPrev = true;
   const canGoNext = selectedMonth < todayYYYYMM();
   const isBeforeStart = planStartDate ? selectedMonth < planStartDate : false;
@@ -49,76 +114,56 @@ export default function ActualPayments({ debts, schedule, actuals, onSetActual, 
     return entry.debtSnapshots.find(s => s.debtId === debtId)?.payment ?? 0;
   }
 
-  function getActual(debtId: string): number | undefined {
+  function getSavedExtra(debtId: string): number | undefined {
     return actuals.find(a => a.month === selectedMonth && a.debtId === debtId)?.amount;
   }
 
-  // Compute summary KPIs from all actuals
-  const totalPaid = actuals.reduce((s, a) => s + a.amount, 0);
-  // Approximate principal/interest split from schedule
-  let totalPrincipalApprox = 0;
-  let totalInterestApprox = 0;
-  for (const entry of schedule) {
-    for (const ds of entry.debtSnapshots) {
-      const act = actuals.find(a => a.month === entry.month && a.debtId === ds.debtId);
-      if (act) {
-        const intFrac = ds.payment > 0 ? ds.interestCharge / ds.payment : 0;
-        totalInterestApprox += act.amount * intFrac;
-        totalPrincipalApprox += act.amount * (1 - intFrac);
-      }
-    }
+  // All-time KPIs from saved actuals
+  const totalExtraLogged = actuals.reduce((s, a) => s + a.amount, 0);
+
+  // Cumulative extra vs what extra was planned (scheduled surplus above minimums)
+  let cumulativeExtra = 0;
+  for (const a of actuals) {
+    if (a.month <= selectedMonth) cumulativeExtra += a.amount;
   }
 
-  // cumulative variance across all months up to and including selectedMonth
-  let cumulativeVariance = 0;
-  for (const entry of schedule) {
-    if (entry.month > selectedMonth) break;
-    for (const ds of entry.debtSnapshots) {
-      const act = actuals.find(a => a.month === entry.month && a.debtId === ds.debtId);
-      if (act != null) cumulativeVariance += act.amount - ds.payment;
-    }
-  }
+  // Months where any extra was logged
+  const monthsWithPayments = new Set(actuals.map(a => a.month)).size;
 
-  const monthActuals = debts.map(d => ({
+  const monthRows = debts.map(d => ({
     debt: d,
     planned: getPlanned(d.id),
-    actual: getActual(d.id),
+    savedExtra: getSavedExtra(d.id),
   }));
-  const totalPlanned = monthActuals.reduce((s, r) => s + r.planned, 0);
-  const totalActual = monthActuals.reduce((s, r) => s + (r.actual ?? 0), 0);
+
+  const totalPlanned = monthRows.reduce((s, r) => s + r.planned, 0);
+  const totalExtra = monthRows.reduce((s, r) => s + (r.savedExtra ?? 0), 0);
 
   return (
     <div>
-      {/* Greeting */}
       <div className="greeting">
         <div>
-          <h1>
-            Payment <span className="h1-italic">history.</span>
-          </h1>
-          <p>Every payment you{"'"}ve logged, with principal/interest breakdown.</p>
+          <h1>Actual <span className="h1-italic">payments.</span></h1>
+          <p>Log any extra you paid above the plan. Minimums are always assumed paid.</p>
         </div>
       </div>
 
       {/* KPI grid */}
       <div className="kpi-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)", marginBottom: 24 }}>
         <div className="kpi">
-          <div className="kpi-label">Paid (all time)</div>
-          <div className="kpi-value">{formatCurrency(totalPaid)}</div>
-          <div className="kpi-sub">Across {actuals.length} payment{actuals.length !== 1 ? "s" : ""}</div>
+          <div className="kpi-label">Extra paid (all time)</div>
+          <div className="kpi-value" style={{ color: "var(--sage-deep)" }}>{formatCurrency(totalExtraLogged)}</div>
+          <div className="kpi-sub">Across {monthsWithPayments} month{monthsWithPayments !== 1 ? "s" : ""}</div>
         </div>
         <div className="kpi">
-          <div className="kpi-label">To principal</div>
-          <div className="kpi-value" style={{ color: "var(--sage-deep)" }}>{formatCurrency(totalPrincipalApprox)}</div>
-          <div className="kpi-sub">
-            {totalPaid > 0 ? ((totalPrincipalApprox / totalPaid) * 100).toFixed(0) : 0}% of total
-          </div>
+          <div className="kpi-label">Extra to date</div>
+          <div className="kpi-value">{formatCurrency(cumulativeExtra)}</div>
+          <div className="kpi-sub">Through {formatMonth(selectedMonth)}</div>
         </div>
         <div className="kpi">
-          <div className="kpi-label">To interest</div>
-          <div className="kpi-value warn">{formatCurrency(totalInterestApprox)}</div>
-          <div className="kpi-sub">
-            {totalPaid > 0 ? ((totalInterestApprox / totalPaid) * 100).toFixed(0) : 0}% of total
-          </div>
+          <div className="kpi-label">Entries logged</div>
+          <div className="kpi-value">{actuals.length}</div>
+          <div className="kpi-sub">Total payment records</div>
         </div>
       </div>
 
@@ -128,51 +173,14 @@ export default function ActualPayments({ debts, schedule, actuals, onSetActual, 
         background: "var(--surface)", border: "1px solid var(--line)",
         borderRadius: "var(--r-lg)", padding: "12px 20px", marginBottom: 16,
       }}>
-        <button
-          onClick={() => setSelectedMonth(prevMonth(selectedMonth))}
-          disabled={!canGoPrev}
-          className="btn sm"
-          style={{ opacity: canGoPrev ? 1 : 0.3 }}
-        >
+        <button onClick={() => setSelectedMonth(prevMonth(selectedMonth))} disabled={!canGoPrev} className="btn sm" style={{ opacity: canGoPrev ? 1 : 0.3 }}>
           ‹ Prev
         </button>
-        <span style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)" }}>
-          {formatMonth(selectedMonth)}
-        </span>
-        <button
-          onClick={() => setSelectedMonth(nextMonth(selectedMonth))}
-          disabled={!canGoNext}
-          className="btn sm"
-          style={{ opacity: canGoNext ? 1 : 0.3 }}
-        >
+        <span style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)" }}>{formatMonth(selectedMonth)}</span>
+        <button onClick={() => setSelectedMonth(nextMonth(selectedMonth))} disabled={!canGoNext} className="btn sm" style={{ opacity: canGoNext ? 1 : 0.3 }}>
           Next ›
         </button>
       </div>
-
-      {/* Cumulative variance banner */}
-      {cumulativeVariance !== 0 && (
-        <div style={{
-          marginBottom: 16,
-          background: cumulativeVariance >= 0 ? "var(--sage-soft)" : "var(--danger-soft)",
-          border: `1px solid ${cumulativeVariance >= 0 ? "var(--sage-soft)" : "var(--danger-soft)"}`,
-          borderRadius: "var(--r-lg)",
-          padding: "12px 16px",
-          display: "flex", alignItems: "center", gap: 12,
-        }}>
-          <span style={{ fontSize: 20 }}>{cumulativeVariance >= 0 ? "💚" : "⚠️"}</span>
-          <div>
-            <div style={{
-              fontWeight: 600, fontSize: 14,
-              color: cumulativeVariance >= 0 ? "var(--sage-deep)" : "var(--danger)",
-            }}>
-              Cumulative variance: {cumulativeVariance >= 0 ? "+" : ""}{formatCurrency(cumulativeVariance)}
-            </div>
-            <div style={{ fontSize: 12.5, color: "var(--ink-muted)", marginTop: 2 }}>
-              {cumulativeVariance >= 0 ? "You've paid more than planned" : "You've paid less than planned"}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Pre-start-date warning */}
       {isBeforeStart && (
@@ -188,72 +196,45 @@ export default function ActualPayments({ debts, schedule, actuals, onSetActual, 
       {/* Payments table */}
       <div className="card">
         <div className="card-head">
-          <div className="card-title">Log payments — {formatMonth(selectedMonth)}</div>
+          <div className="card-title">Log extra payments — {formatMonth(selectedMonth)}</div>
+          <span style={{ fontSize: 12, color: "var(--ink-muted)" }}>
+            Minimums assumed paid. Enter any amount above the plan.
+          </span>
         </div>
         <table className="table">
           <thead>
             <tr>
               <th>Debt</th>
-              <th className="right">Planned</th>
-              <th className="right">Actual paid</th>
-              <th className="right">Variance</th>
+              <th className="right">Planned (min+snowball)</th>
+              <th className="right">Extra paid</th>
+              <th className="right">Total this month</th>
             </tr>
           </thead>
           <tbody>
-            {monthActuals.map(({ debt, planned, actual }) => {
-              const variance = actual != null ? actual - planned : null;
-              return (
-                <tr key={debt.id}>
-                  <td style={{ fontWeight: 500 }}>{debt.name}</td>
-                  <td className="num" style={{ color: "var(--ink-muted)" }}>{formatCurrency(planned)}</td>
-                  <td className="num">
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={actual ?? ""}
-                      placeholder={planned.toFixed(2)}
-                      onChange={e => onSetActual(selectedMonth, debt.id, Number(e.target.value) || 0)}
-                      style={{
-                        width: 110, textAlign: "right",
-                        border: "1px solid var(--line-strong)",
-                        borderRadius: "var(--r-md)",
-                        padding: "6px 10px",
-                        fontSize: 13.5,
-                        color: "var(--ink)",
-                        background: "var(--surface)",
-                        fontFamily: "var(--font-num)",
-                      }}
-                      onFocus={e => (e.target.style.borderColor = "var(--info)")}
-                      onBlur={e => (e.target.style.borderColor = "var(--line-strong)")}
-                    />
-                  </td>
-                  <td className="num" style={{
-                    fontWeight: 500,
-                    color: variance == null ? "var(--ink-faint)" : variance >= 0 ? "var(--sage)" : "var(--danger)",
-                  }}>
-                    {variance == null ? "—" : `${variance >= 0 ? "+" : ""}${formatCurrency(variance)}`}
-                  </td>
-                </tr>
-              );
-            })}
+            {monthRows.map(({ debt, planned, savedExtra }) => (
+              <DebtRow
+                key={`${debt.id}-${selectedMonth}`}
+                debt={debt}
+                planned={planned}
+                savedExtra={savedExtra}
+                month={selectedMonth}
+                onSetActual={onSetActual}
+              />
+            ))}
             <tr style={{ background: "var(--surface-2)" }}>
-              <td style={{ fontWeight: 600, color: "var(--ink)" }}>Total</td>
+              <td style={{ fontWeight: 600 }}>Total</td>
               <td className="num" style={{ fontWeight: 600 }}>{formatCurrency(totalPlanned)}</td>
-              <td className="num" style={{ fontWeight: 600 }}>{formatCurrency(totalActual)}</td>
-              <td className="num" style={{
-                fontWeight: 600,
-                color: totalActual > 0
-                  ? (totalActual - totalPlanned >= 0 ? "var(--sage)" : "var(--danger)")
-                  : "var(--ink-faint)",
-              }}>
-                {totalActual > 0
-                  ? `${totalActual - totalPlanned >= 0 ? "+" : ""}${formatCurrency(totalActual - totalPlanned)}`
-                  : "—"}
+              <td className="num" style={{ fontWeight: 600, color: totalExtra > 0 ? "var(--sage-deep)" : "var(--ink-faint)" }}>
+                {totalExtra > 0 ? `+${formatCurrency(totalExtra)}` : "—"}
               </td>
+              <td className="num" style={{ fontWeight: 600 }}>{formatCurrency(totalPlanned + totalExtra)}</td>
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div style={{ marginTop: 12, fontSize: 12.5, color: "var(--ink-muted)", textAlign: "center" }}>
+        Extra payments update your dashboard, schedule, and payoff date automatically.
       </div>
     </div>
   );

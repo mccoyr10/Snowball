@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
 import { getIdToken } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { useAuth } from "@/context/AuthContext";
 import { formatCurrency, type UIDebt, type UISettings, type Summary } from "@/lib/snowball";
 
 interface Message {
@@ -24,6 +26,8 @@ const suggestions = [
 ];
 
 export default function ChatPanel({ debts, settings, summary }: ChatPanelProps) {
+  const { userDoc } = useAuth();
+  const firstName = userDoc?.displayName?.split(" ")[0] || "there";
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -91,6 +95,7 @@ export default function ChatPanel({ debts, settings, summary }: ChatPanelProps) 
       {/* Greeting */}
       <div className="greeting">
         <div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>Hi {firstName}!</div>
           <h1>
             Your <span className="h1-italic">advisor.</span>
           </h1>
@@ -114,7 +119,7 @@ export default function ChatPanel({ debts, settings, summary }: ChatPanelProps) 
               </svg>
             </div>
             <div>
-              <div style={{ fontSize: 14.5, fontWeight: 600, color: "var(--ink)" }}>Snowball Advisor</div>
+              <div style={{ fontSize: 14.5, fontWeight: 600, color: "var(--ink)" }}>Exhale Advisor</div>
               <div style={{ fontSize: 12, color: "var(--ink-muted)" }}>
                 <span style={{ color: "var(--sage)" }}>●</span> Online · Tailored to your plan
               </div>
@@ -141,7 +146,13 @@ export default function ChatPanel({ debts, settings, summary }: ChatPanelProps) 
           )}
           {messages.map((m, i) => (
             <div key={i} className={`msg ${m.role === "user" ? "you" : "bot"}`}>
-              <div style={{ whiteSpace: "pre-wrap" }}>{m.content}</div>
+              {m.role === "assistant" ? (
+                <div className="md-body">
+                  <ReactMarkdown>{m.content}</ReactMarkdown>
+                </div>
+              ) : (
+                <div style={{ whiteSpace: "pre-wrap" }}>{m.content}</div>
+              )}
               <div className="msg-meta">Now</div>
             </div>
           ))}
@@ -202,7 +213,7 @@ export default function ChatPanel({ debts, settings, summary }: ChatPanelProps) 
           <line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
         <div>
-          <strong>Not financial advice.</strong> Snowball Advisor uses your data to suggest strategies, but final decisions are yours.
+          <strong>Not financial advice.</strong> Exhale Advisor uses your data to suggest strategies, but final decisions are yours.
           Consider talking to a licensed financial planner for major changes.
         </div>
       </div>

@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-export const metadata = { title: "Privacy Policy — Snowball" };
+export const metadata = { title: "Privacy Policy — Exhale Debt" };
 
 export default function PrivacyPage() {
   return (

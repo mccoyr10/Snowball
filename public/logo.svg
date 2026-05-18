@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 200" fill="none">
+  <!-- Wind / exhale cloud mark -->
+  <!-- Left cloud lobe (smaller) -->
+  <path
+    d="M100 110
+       C100 88 110 76 124 76
+       C124 60 136 50 152 50
+       C168 50 180 60 180 76
+       C188 72 198 78 198 90
+       C198 100 190 106 180 106"
+    stroke="#7CB9AD" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"
+  />
+  <!-- Exhale sweep line below cloud -->
+  <path
+    d="M64 130
+       C82 118 106 122 126 132
+       C144 140 162 134 170 122"
+    stroke="#7CB9AD" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"
+  />
+  <!-- Spiral curl at end of sweep -->
+  <path
+    d="M170 122
+       C176 110 170 100 160 104"
+    stroke="#7CB9AD" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"
+  />
+
+  <!-- Wordmark: "Exhale" in teal -->
+  <text
+    x="64" y="180"
+    font-family="'Trebuchet MS', 'Gill Sans', Arial, sans-serif"
+    font-size="52"
+    font-weight="400"
+    letter-spacing="-0.5"
+    fill="#7CB9AD"
+  >Exhale</text>
+
+  <!-- Wordmark: "Debt" in charcoal -->
+  <text
+    x="240" y="180"
+    font-family="'Trebuchet MS', 'Gill Sans', Arial, sans-serif"
+    font-size="52"
+    font-weight="700"
+    letter-spacing="-0.5"
+    fill="#4A5568"
+  > Debt</text>
+</svg>

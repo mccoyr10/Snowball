@@ -180,7 +180,10 @@ export function computeActualAdjustedDebts(
       debt.balance = r2(debt.balance + debt.balance * rate);
       const actual = validActuals.find(a => a.month === snap.month && a.debtId === debt.id);
       const ds = snap.debtSnapshots.find(s => s.debtId === debt.id);
-      const payment = actual != null ? Number(actual.amount) : (ds ? ds.payment : 0);
+      // Scheduled payment (minimums + snowball) is always assumed paid.
+      // Actuals store only the *extra* the user logged on top — add them together.
+      const scheduledPayment = ds ? ds.payment : 0;
+      const payment = actual != null ? r2(scheduledPayment + Number(actual.amount)) : scheduledPayment;
       debt.balance = r2(Math.max(0, debt.balance - payment));
       if (debt.balance < 0.005) debt.balance = 0;
     }
