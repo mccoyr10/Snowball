@@ -120,7 +120,11 @@ export default function SnowballApp() {
   }, [loading, firestoreDebts.length]);
 
   const debts = firestoreDebts.map(toUIDebt);
-  const { adjustedDebts } = computeActualAdjustedDebts(debts, [], actuals);
+  // Build a preliminary schedule from stored balances so computeActualAdjustedDebts
+  // has month-by-month entries to apply interest + scheduled payments against.
+  const prelimSchedule = buildSnowballSchedule(debts, settings);
+  const { adjustedDebts } = computeActualAdjustedDebts(debts, prelimSchedule, actuals);
+  // Rebuild the forward-looking schedule and summary from the adjusted balances.
   const schedule = buildSnowballSchedule(adjustedDebts, settings);
   const summary = calculateSummary(adjustedDebts, schedule, settings);
 
@@ -205,7 +209,7 @@ export default function SnowballApp() {
     schedule: <PayoffSchedule debts={adjustedDebts} schedule={schedule} />,
     actuals: (
       <ActualPayments
-        debts={debts}
+        debts={adjustedDebts}
         schedule={schedule}
         actuals={actuals}
         onSetActual={handleSetActual}
