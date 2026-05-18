@@ -9,6 +9,29 @@ interface NavBarProps {
   onOpenHousehold: () => void;
 }
 
+// Exhale Debt logo mark — inline SVG recreation of the wind/cloud exhale motif
+function ExhaleLogo({ size = 32 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Cloud: two overlapping rounded humps */}
+      <path
+        d="M14 38 C14 29 20 24 27 24 C27 17 33 12 41 12 C49 12 55 17 55 24 C59 22 64 26 64 32 C64 37 60 40 55 40"
+        stroke="#6BAD9E" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"
+      />
+      {/* Exhale sweep — broad wind arc flowing right */}
+      <path
+        d="M2 50 C14 42 28 46 40 52 C50 57 58 50 58 43"
+        stroke="#6BAD9E" strokeWidth="4" strokeLinecap="round"
+      />
+      {/* Curl at end of exhale */}
+      <path
+        d="M58 43 C60 35 54 30 48 33"
+        stroke="#6BAD9E" strokeWidth="4" strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 // Inline SVG icons
 function IconLayout({ className }: { className?: string }) {
   return (
@@ -85,10 +108,28 @@ export default function NavBar({ activeTab, setActiveTab, saveStatus, displayNam
       {/* Desktop Sidebar */}
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark">
-            <IconSnowflake />
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {/* Wind / exhale cloud mark */}
+            <svg width="56" height="34" viewBox="0 0 56 34" fill="none" xmlns="http://www.w3.org/2000/svg">
+              {/* Cloud — two rounded lobes */}
+              <path
+                d="M10 22 C10 15 14 11 19 11 C19 6 23 3 28 3 C33 3 37 6 37 11 C40 9 44 12 44 16 C44 20 41 22 37 22"
+                stroke="#7CB9AD" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"
+              />
+              {/* Exhale sweep */}
+              <path
+                d="M3 28 C10 23 18 25 25 29 C30 32 36 29 38 25"
+                stroke="#7CB9AD" strokeWidth="2.8" strokeLinecap="round"
+              />
+              {/* Curl at end */}
+              <path d="M38 25 C40 20 37 16 33 18" stroke="#7CB9AD" strokeWidth="2.8" strokeLinecap="round" />
+            </svg>
+            {/* Wordmark */}
+            <div style={{ display: "flex", alignItems: "baseline", gap: 4, lineHeight: 1 }}>
+              <span style={{ fontFamily: "var(--font-ui)", fontSize: 15, fontWeight: 500, color: "#7CB9AD", letterSpacing: "-0.01em" }}>Exhale</span>
+              <span style={{ fontFamily: "var(--font-ui)", fontSize: 15, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>Debt</span>
+            </div>
           </div>
-          <div className="brand-name">Snowball</div>
         </div>
 
         <nav className="nav">

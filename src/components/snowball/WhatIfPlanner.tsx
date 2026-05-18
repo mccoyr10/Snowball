@@ -113,100 +113,110 @@ export default function WhatIfPlanner({ debts, settings, summary }: WhatIfPlanne
 
   const targetDebtName = [...debts].sort((a, b) => Number(a.balance) - Number(b.balance))[0]?.name;
 
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    border: "1px solid var(--line-strong)",
+    borderRadius: "var(--r-md)",
+    padding: "9px 12px",
+    fontSize: 14,
+    color: "var(--ink)",
+    background: "var(--surface)",
+    fontFamily: "var(--font-ui)",
+    outline: "none",
+  };
+
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+    <div className="card">
       <button
         onClick={() => setOpen(v => !v)}
-        className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+        style={{
+          width: "100%", padding: "16px 22px",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          background: "none", border: "none", cursor: "pointer", textAlign: "left",
+        }}
       >
-        <div className="flex items-center gap-3">
-          <span className="text-xl">🔮</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10,
+            background: "var(--gold-soft)", display: "grid", placeItems: "center",
+            color: "var(--gold)", flexShrink: 0,
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
+            </svg>
+          </div>
           <div>
-            <p className="text-sm font-semibold text-gray-700">What-If Scenario Planner</p>
-            <p className="text-xs text-gray-400">See how extra payments change your payoff date</p>
+            <div style={{ fontSize: 14.5, fontWeight: 600, color: "var(--ink)" }}>What-If Scenario Planner</div>
+            <div style={{ fontSize: 12.5, color: "var(--ink-muted)", marginTop: 2 }}>See how extra payments change your payoff date</div>
           </div>
         </div>
-        <svg
-          className={`w-5 h-5 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`}
-          fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          strokeLinecap="round" strokeLinejoin="round"
+          style={{ color: "var(--ink-faint)", transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s", flexShrink: 0 }}>
+          <path d="M19 9l-7 7-7-7"/>
         </svg>
       </button>
 
       {open && (
-        <div className="border-t border-gray-100 p-5 space-y-5">
+        <div style={{ borderTop: "1px solid var(--line)", padding: 22, display: "flex", flexDirection: "column", gap: 20 }}>
 
-          {/* Consistent extra + lump sum */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Inputs */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1.5">
-                Extra every month ($)
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--ink-muted)", marginBottom: 6, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                Extra every month
               </label>
-              <input
-                type="number" min="0" step="0.01" value={extraMonthly}
+              <input type="number" min="0" step="0.01" value={extraMonthly}
                 onChange={e => setExtraMonthly(e.target.value)}
-                placeholder="e.g. 200"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g. 200" style={inputStyle}
               />
-              <p className="text-xs text-gray-400 mt-1">Added on top of your current {formatCurrency(Number(settings.monthlyBudget))} budget every month</p>
+              <p style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 5 }}>
+                Added on top of your {formatCurrency(Number(settings.monthlyBudget))} budget
+              </p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1.5">
-                One-time lump sum ($)
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--ink-muted)", marginBottom: 6, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                One-time lump sum
               </label>
-              <input
-                type="number" min="0" step="0.01" value={lumpSum}
+              <input type="number" min="0" step="0.01" value={lumpSum}
                 onChange={e => setLumpSum(e.target.value)}
-                placeholder="e.g. 1000"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g. 1000" style={inputStyle}
               />
-              <p className="text-xs text-gray-400 mt-1">
-                Applied to target: <span className="font-medium text-gray-600">{targetDebtName}</span>
+              <p style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 5 }}>
+                Applied to <span style={{ fontWeight: 600, color: "var(--ink-muted)" }}>{targetDebtName}</span>
               </p>
             </div>
           </div>
 
-          {/* Per-month specific payments */}
+          {/* Per-month overrides */}
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-gray-600">Specific month extra payments</label>
-              <button
-                onClick={addRow}
-                className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
-              >
-                <span className="text-base leading-none">+</span> Add month
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                Specific month extras
+              </span>
+              <button onClick={addRow} className="btn sm">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add month
               </button>
             </div>
-
             {overrides.length === 0 ? (
-              <p className="text-xs text-gray-400 py-2">
-                No specific months added — click &ldquo;+ Add month&rdquo; to enter a one-off extra payment for a particular month (e.g. a tax refund in April).
+              <p style={{ fontSize: 12.5, color: "var(--ink-faint)", padding: "8px 0" }}>
+                Add a specific month to model a one-off extra payment — e.g. a tax refund in April.
               </p>
             ) : (
-              <div className="space-y-2">
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {overrides.map(row => (
-                  <div key={row.key} className="flex items-center gap-2">
-                    <input
-                      type="month"
-                      value={row.month}
+                  <div key={row.key} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <input type="month" value={row.month}
                       onChange={e => updateRow(row.key, "month", e.target.value)}
-                      className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 flex-1 min-w-0"
+                      style={{ ...inputStyle, flex: 1 }}
                     />
-                    <div className="relative flex-1 min-w-0">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                      <input
-                        type="number" min="0" step="0.01"
-                        value={row.amount}
-                        onChange={e => updateRow(row.key, "amount", e.target.value)}
-                        placeholder="0.00"
-                        className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <button
-                      onClick={() => removeRow(row.key)}
-                      className="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-red-400 flex-shrink-0 rounded-lg hover:bg-red-50 transition-colors"
-                    >
+                    <input type="number" min="0" step="0.01" value={row.amount}
+                      onChange={e => updateRow(row.key, "amount", e.target.value)}
+                      placeholder="0.00" style={{ ...inputStyle, flex: 1 }}
+                    />
+                    <button onClick={() => removeRow(row.key)}
+                      style={{ width: 32, height: 32, border: "1px solid var(--line)", borderRadius: "var(--r-md)", background: "none", color: "var(--ink-faint)", cursor: "pointer", flexShrink: 0, fontSize: 18, display: "grid", placeItems: "center" }}>
                       ×
                     </button>
                   </div>
@@ -217,118 +227,81 @@ export default function WhatIfPlanner({ debts, settings, summary }: WhatIfPlanne
 
           {/* Results */}
           {result ? (
-            <div className="space-y-3">
-              {/* Overall summary */}
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-3">
-                <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Overall Impact</p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="bg-white rounded-lg p-3 border border-blue-100">
-                    <p className="text-xs text-gray-400 mb-1">New Payoff Date</p>
-                    <p className="text-sm font-bold text-gray-800">{formatMonth(result.newSummary.projectedPayoffDate)}</p>
-                    {result.monthsSaved > 0 && (
-                      <p className="text-xs text-green-600 font-medium mt-0.5">{result.monthsSaved} mo. sooner</p>
-                    )}
-                  </div>
-                  <div className="bg-white rounded-lg p-3 border border-blue-100">
-                    <p className="text-xs text-gray-400 mb-1">Months Left</p>
-                    <p className="text-sm font-bold text-blue-700">{result.newSummary.monthsRemaining}</p>
-                    {result.monthsSaved > 0 && (
-                      <p className="text-xs text-green-600 font-medium mt-0.5">vs. {summary.monthsRemaining} now</p>
-                    )}
-                  </div>
-                  <div className="bg-white rounded-lg p-3 border border-blue-100">
-                    <p className="text-xs text-gray-400 mb-1">New Total Interest</p>
-                    <p className="text-sm font-bold text-orange-500">{formatCurrency(result.newSummary.totalInterestPlanned)}</p>
-                  </div>
-                  <div className="bg-white rounded-lg p-3 border border-blue-100">
-                    <p className="text-xs text-gray-400 mb-1">Interest Saved</p>
-                    <p className={`text-sm font-bold ${result.interestSaved > 0 ? "text-green-600" : "text-gray-500"}`}>
-                      {result.interestSaved > 0 ? formatCurrency(result.interestSaved) : "—"}
-                    </p>
-                  </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {/* Overall impact */}
+              <div style={{
+                background: "var(--sage-soft)",
+                border: "1px solid color-mix(in oklab, var(--sage) 25%, var(--sage-soft))",
+                borderRadius: "var(--r-lg)", padding: 16,
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--sage-deep)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12 }}>
+                  Overall impact
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12 }}>
+                  {[
+                    { label: "New payoff date", value: formatMonth(result.newSummary.projectedPayoffDate), sub: result.monthsSaved > 0 ? `${result.monthsSaved} mo. sooner` : null, subColor: "var(--sage-deep)" },
+                    { label: "Months left", value: String(result.newSummary.monthsRemaining), sub: result.monthsSaved > 0 ? `vs. ${summary.monthsRemaining} now` : null, subColor: "var(--sage-deep)" },
+                    { label: "New total interest", value: formatCurrency(result.newSummary.totalInterestPlanned), sub: null, valueColor: "var(--warn)" },
+                    { label: "Interest saved", value: result.interestSaved > 0 ? formatCurrency(result.interestSaved) : "—", sub: null, valueColor: result.interestSaved > 0 ? "var(--sage-deep)" : "var(--ink-faint)" },
+                  ].map(item => (
+                    <div key={item.label} style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", padding: "10px 12px" }}>
+                      <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginBottom: 4 }}>{item.label}</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: item.valueColor || "var(--ink)", fontVariantNumeric: "tabular-nums" }}>{item.value}</div>
+                      {item.sub && <div style={{ fontSize: 11.5, color: item.subColor, fontWeight: 600, marginTop: 2 }}>{item.sub}</div>}
+                    </div>
+                  ))}
                 </div>
                 {result.monthsSaved > 0 && (
-                  <div className="flex items-center gap-2 text-sm text-green-700 font-medium">
+                  <div style={{ marginTop: 12, fontSize: 13.5, fontWeight: 600, color: "var(--sage-deep)", display: "flex", alignItems: "center", gap: 8 }}>
                     <span>🎉</span>
-                    <span>You&apos;d be debt-free {result.monthsSaved} month{result.monthsSaved !== 1 ? "s" : ""} earlier!</span>
+                    <span>Debt-free {result.monthsSaved} month{result.monthsSaved !== 1 ? "s" : ""} earlier!</span>
                   </div>
                 )}
               </div>
 
-              {/* Per-debt breakdown */}
-              <div className="border border-gray-100 rounded-xl overflow-hidden">
-                <div className="bg-gray-50 px-4 py-2.5 border-b border-gray-100">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Per-Debt Breakdown</p>
+              {/* Per-debt table */}
+              <div className="card">
+                <div className="card-head">
+                  <div className="card-title">Per-debt breakdown</div>
                 </div>
-                {/* Desktop table */}
-                <table className="hidden sm:table min-w-full text-sm">
+                <table className="table">
                   <thead>
-                    <tr className="border-b border-gray-100">
-                      <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-400">Debt</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-400">Current Payoff</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-400">New Payoff</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-400">Mo. Saved</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-400">Current Interest</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-400">New Interest</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-400">Int. Saved</th>
+                    <tr>
+                      <th>Debt</th>
+                      <th className="right">Current payoff</th>
+                      <th className="right">New payoff</th>
+                      <th className="right">Mo. saved</th>
+                      <th className="right">Current interest</th>
+                      <th className="right">New interest</th>
+                      <th className="right">Int. saved</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50 bg-white">
+                  <tbody>
                     {result.debtRows.map(row => (
-                      <tr key={row.debt.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-gray-700">{row.debt.name}</td>
-                        <td className="px-4 py-3 text-right text-gray-400 text-xs">{formatMonth(row.currentPayoff)}</td>
-                        <td className="px-4 py-3 text-right font-medium text-gray-700 text-xs">{formatMonth(row.newPayoff)}</td>
-                        <td className="px-4 py-3 text-right">
+                      <tr key={row.debt.id}>
+                        <td style={{ fontWeight: 500 }}>{row.debt.name}</td>
+                        <td className="num" style={{ color: "var(--ink-muted)" }}>{formatMonth(row.currentPayoff)}</td>
+                        <td className="num" style={{ fontWeight: 600 }}>{formatMonth(row.newPayoff)}</td>
+                        <td className="num">
                           {row.monthsSaved > 0
-                            ? <span className="text-green-600 font-medium text-xs">{row.monthsSaved} mo.</span>
-                            : <span className="text-gray-300 text-xs">—</span>}
+                            ? <span style={{ color: "var(--sage-deep)", fontWeight: 600 }}>{row.monthsSaved} mo.</span>
+                            : <span style={{ color: "var(--ink-faint)" }}>—</span>}
                         </td>
-                        <td className="px-4 py-3 text-right text-orange-400 text-xs">{formatCurrency(row.currentInterest)}</td>
-                        <td className="px-4 py-3 text-right text-orange-500 font-medium text-xs">{formatCurrency(row.newInterest)}</td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="num" style={{ color: "var(--warn)" }}>{formatCurrency(row.currentInterest)}</td>
+                        <td className="num" style={{ color: "var(--warn)", fontWeight: 600 }}>{formatCurrency(row.newInterest)}</td>
+                        <td className="num">
                           {row.interestSaved > 0
-                            ? <span className="text-green-600 font-medium text-xs">{formatCurrency(row.interestSaved)}</span>
-                            : <span className="text-gray-300 text-xs">—</span>}
+                            ? <span style={{ color: "var(--sage-deep)", fontWeight: 600 }}>{formatCurrency(row.interestSaved)}</span>
+                            : <span style={{ color: "var(--ink-faint)" }}>—</span>}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                {/* Mobile cards */}
-                <div className="sm:hidden divide-y divide-gray-50 bg-white">
-                  {result.debtRows.map(row => (
-                    <div key={row.debt.id} className="px-4 py-3">
-                      <p className="font-medium text-gray-700 mb-2">{row.debt.name}</p>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                        <div className="text-gray-400">Current payoff</div>
-                        <div className="text-right text-gray-500">{formatMonth(row.currentPayoff)}</div>
-                        <div className="text-gray-400">New payoff</div>
-                        <div className="text-right font-medium text-gray-700">{formatMonth(row.newPayoff)}</div>
-                        {row.monthsSaved > 0 && (
-                          <>
-                            <div className="text-gray-400">Months saved</div>
-                            <div className="text-right text-green-600 font-medium">{row.monthsSaved} mo.</div>
-                          </>
-                        )}
-                        <div className="text-gray-400">Current interest</div>
-                        <div className="text-right text-orange-400">{formatCurrency(row.currentInterest)}</div>
-                        <div className="text-gray-400">New interest</div>
-                        <div className="text-right text-orange-500 font-medium">{formatCurrency(row.newInterest)}</div>
-                        {row.interestSaved > 0 && (
-                          <>
-                            <div className="text-gray-400">Interest saved</div>
-                            <div className="text-right text-green-600 font-medium">{formatCurrency(row.interestSaved)}</div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
           ) : (
-            <div className="text-center py-4 text-gray-400 text-sm">
+            <div style={{ textAlign: "center", padding: "16px 0", fontSize: 13.5, color: "var(--ink-faint)" }}>
               Enter values above to see the projected impact.
             </div>
           )}
