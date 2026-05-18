@@ -48,6 +48,7 @@ export default function ActualPayments({ debts, schedule, actuals, onSetActual }
   const [selectedMonth, setSelectedMonth] = useState(todayYYYYMM());
   const [totalInput, setTotalInput] = useState("");
   const [saved, setSaved] = useState(false);
+  const [paymentLog, setPaymentLog] = useState<{ amount: number; label: string }[]>([]);
 
   if (debts.length === 0) {
     return (
@@ -70,6 +71,13 @@ export default function ActualPayments({ debts, schedule, actuals, onSetActual }
   const canGoPrev = months.length === 0 || selectedMonth > months[0];
   const canGoNext = selectedMonth < todayYYYYMM();
 
+  function changeMonth(month: string) {
+    setSelectedMonth(month);
+    setTotalInput("");
+    setSaved(false);
+    setPaymentLog([]);
+  }
+
   // Planned total for selected month
   const entry = schedule.find(e => e.month === selectedMonth);
   const plannedTotal = entry?.debtSnapshots.reduce((s, ds) => s + ds.payment, 0) ?? 0;
@@ -89,11 +97,16 @@ export default function ActualPayments({ debts, schedule, actuals, onSetActual }
     if (previewAmount <= 0) return;
     const dist = distributeSnowball(previewAmount, debts, schedule, selectedMonth);
     for (const [debtId, amount] of Object.entries(dist)) {
-      onSetActual(selectedMonth, debtId, amount);
+      // Accumulate on top of what's already logged for this month
+      const existing = actuals.find(a => a.month === selectedMonth && a.debtId === debtId)?.amount ?? 0;
+      onSetActual(selectedMonth, debtId, Math.round((existing + amount) * 100) / 100);
     }
+    const now = new Date();
+    const timeLabel = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    setPaymentLog(prev => [...prev, { amount: previewAmount, label: timeLabel }]);
     setTotalInput("");
     setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    setTimeout(() => setSaved(false), 1500);
   }
 
   // Summary KPIs from all actuals
@@ -152,12 +165,12 @@ export default function ActualPayments({ debts, schedule, actuals, onSetActual }
         background: "var(--surface)", border: "1px solid var(--line)",
         borderRadius: "var(--r-lg)", padding: "12px 20px", marginBottom: 16,
       }}>
-        <button onClick={() => { setSelectedMonth(prevMonth(selectedMonth)); setTotalInput(""); setSaved(false); }}
+        <button onClick={() => changeMonth(prevMonth(selectedMonth))}
           disabled={!canGoPrev} className="btn sm" style={{ opacity: canGoPrev ? 1 : 0.3 }}>
           ‹ Prev
         </button>
         <span style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)" }}>{formatMonth(selectedMonth)}</span>
-        <button onClick={() => { setSelectedMonth(nextMonth(selectedMonth)); setTotalInput(""); setSaved(false); }}
+        <button onClick={() => changeMonth(nextMonth(selectedMonth))}
           disabled={!canGoNext} className="btn sm" style={{ opacity: canGoNext ? 1 : 0.3 }}>
           Next ›
         </button>
@@ -270,6 +283,41 @@ export default function ActualPayments({ debts, schedule, actuals, onSetActual }
           )}
         </div>
       </div>
+
+      {/* This session's payment log */}
+      {paymentLog.length > 0 && (
+        <div style={{
+          background: "var(--sage-soft)",
+          border: "1px solid color-mix(in oklab, var(--sage) 25%, var(--sage-soft))",
+          borderRadius: "var(--r-lg)",
+          padding: "14px 18px",
+          marginBottom: 16,
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--sage-deep)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 2 }}>
+            Logged this session — {formatMonth(selectedMonth)}
+          </div>
+          {paymentLog.map((p, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13.5 }}>
+              <span style={{ color: "var(--sage-deep)", fontWeight: 500 }}>Payment {i + 1}</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 12, color: "var(--ink-muted)", fontSize: 12 }}>
+                <span>{p.label}</span>
+                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--sage-deep)", fontVariantNumeric: "tabular-nums" }}>
+                  {formatCurrency(p.amount)}
+                </span>
+              </span>
+            </div>
+          ))}
+          <div style={{ borderTop: "1px solid color-mix(in oklab, var(--sage) 20%, transparent)", paddingTop: 8, display: "flex", justifyContent: "space-between", fontSize: 13.5, fontWeight: 700, color: "var(--sage-deep)" }}>
+            <span>Session total</span>
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>
+              {formatCurrency(paymentLog.reduce((s, p) => s + p.amount, 0))}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Payment history */}
       {actuals.length > 0 && (
