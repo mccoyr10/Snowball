@@ -17,7 +17,7 @@ export async function POST(request: Request) {
 
   const stripeKey = process.env.STRIPE_SECRET_KEY;
   const priceId = process.env.STRIPE_PRICE_ID;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://snowball.netlify.app";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://exhaledebt.com";
 
   if (!stripeKey || !priceId) {
     return Response.json({ error: "Stripe is not configured." }, { status: 503 });
