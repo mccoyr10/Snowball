@@ -8,9 +8,10 @@ interface ActualPaymentsProps {
   schedule: ScheduleEntry[];
   actuals: UIActual[];
   onSetActual: (month: string, debtId: string, amount: number) => void;
+  onGoToDebts?: () => void;
 }
 
-export default function ActualPayments({ debts, schedule, actuals, onSetActual }: ActualPaymentsProps) {
+export default function ActualPayments({ debts, schedule, actuals, onSetActual, onGoToDebts }: ActualPaymentsProps) {
   const [selectedMonth, setSelectedMonth] = useState(todayYYYYMM());
 
   if (debts.length === 0) {
@@ -26,9 +27,12 @@ export default function ActualPayments({ debts, schedule, actuals, onSetActual }
         }}>
           No debts yet
         </h2>
-        <p style={{ color: "var(--ink-muted)", maxWidth: 300, margin: "0 auto" }}>
+        <p style={{ color: "var(--ink-muted)", maxWidth: 300, margin: "0 auto 20px" }}>
           Add your debts to start tracking actual payments.
         </p>
+        {onGoToDebts && (
+          <button className="btn primary" onClick={onGoToDebts}>Go to Debts →</button>
+        )}
       </div>
     );
   }

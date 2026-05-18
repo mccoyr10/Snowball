@@ -53,9 +53,10 @@ function BurndownChart({
 interface PayoffScheduleProps {
   debts: UIDebt[];
   schedule: ScheduleEntry[];
+  onGoToDebts?: () => void;
 }
 
-export default function PayoffSchedule({ debts, schedule }: PayoffScheduleProps) {
+export default function PayoffSchedule({ debts, schedule, onGoToDebts }: PayoffScheduleProps) {
   const [showAll, setShowAll] = useState(false);
   const [view, setView] = useState<"snowball" | "compare">("snowball");
 
@@ -72,9 +73,12 @@ export default function PayoffSchedule({ debts, schedule }: PayoffScheduleProps)
         }}>
           No schedule yet
         </h2>
-        <p style={{ color: "var(--ink-muted)", maxWidth: 300, margin: "0 auto" }}>
+        <p style={{ color: "var(--ink-muted)", maxWidth: 300, margin: "0 auto 20px" }}>
           Add your debts and set a monthly budget to generate a payoff schedule.
         </p>
+        {onGoToDebts && (
+          <button className="btn primary" onClick={onGoToDebts}>Go to Debts →</button>
+        )}
       </div>
     );
   }

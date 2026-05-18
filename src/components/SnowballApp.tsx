@@ -226,13 +226,14 @@ export default function SnowballApp() {
         onDelete={handleDeleteDebt}
       />
     ),
-    schedule: <PayoffSchedule debts={adjustedDebts} schedule={schedule} />,
+    schedule: <PayoffSchedule debts={adjustedDebts} schedule={schedule} onGoToDebts={() => setActiveTab("debts")} />,
     actuals: (
       <ActualPayments
         debts={adjustedDebts}
         schedule={schedule}
         actuals={actuals}
         onSetActual={handleSetActual}
+        onGoToDebts={() => setActiveTab("debts")}
       />
     ),
     advisor: <ChatPanel debts={adjustedDebts} settings={settings} summary={summary} />,
