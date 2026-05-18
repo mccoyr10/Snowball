@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
 import { getIdToken } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
@@ -145,7 +146,13 @@ export default function ChatPanel({ debts, settings, summary }: ChatPanelProps) 
           )}
           {messages.map((m, i) => (
             <div key={i} className={`msg ${m.role === "user" ? "you" : "bot"}`}>
-              <div style={{ whiteSpace: "pre-wrap" }}>{m.content}</div>
+              {m.role === "assistant" ? (
+                <div className="md-body">
+                  <ReactMarkdown>{m.content}</ReactMarkdown>
+                </div>
+              ) : (
+                <div style={{ whiteSpace: "pre-wrap" }}>{m.content}</div>
+              )}
               <div className="msg-meta">Now</div>
             </div>
           ))}
