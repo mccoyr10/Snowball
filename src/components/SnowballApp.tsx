@@ -112,12 +112,13 @@ export default function SnowballApp() {
 
   const loading = debtsLoading || strategyLoading || actualsLoading;
 
-  // Show onboarding once for new users who have no debts yet
+  // Show onboarding only for genuinely new users: householdId must be loaded
+  // (rules out the brief window where useDebts(null) returns empty before auth resolves)
   useEffect(() => {
-    if (!loading && firestoreDebts.length === 0 && shouldShowOnboarding()) {
+    if (householdId && !loading && firestoreDebts.length === 0 && shouldShowOnboarding()) {
       setShowOnboarding(true);
     }
-  }, [loading, firestoreDebts.length]);
+  }, [householdId, loading, firestoreDebts.length]);
 
   const debts = firestoreDebts.map(toUIDebt);
   // Build a preliminary schedule from stored balances so computeActualAdjustedDebts
