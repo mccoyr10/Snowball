@@ -46,6 +46,13 @@ export interface Actual {
   createdAt: Timestamp;
 }
 
+export interface Payment {
+  id: string;
+  month: string;
+  amount: number;
+  createdAt: Timestamp;
+}
+
 export interface LegacyData {
   debts: { id: string; name: string; balance: number; apr: number; minPayment: number }[];
   settings: { monthlyBudget: number; startDate: string };

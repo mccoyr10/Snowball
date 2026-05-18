@@ -21,6 +21,12 @@ export interface UIActual {
   amount: number;
 }
 
+export interface UIPayment {
+  id: string;
+  month: string;
+  amount: number;
+}
+
 export interface DebtSnapshot {
   debtId: string;
   openingBalance: number;
@@ -153,6 +159,56 @@ export function runMinOnlySchedule(debts: UIDebt[], settings: UISettings): Sched
   if (!debts || debts.length === 0) return [];
   const totalMin = debts.reduce((s, d) => s + Number(d.minPayment), 0);
   return buildSnowballSchedule(debts, { ...settings, monthlyBudget: totalMin });
+}
+
+// Converts unallocated payment log entries into per-debt UIActuals using snowball order.
+// Payments in a month are aggregated, then distributed to the lowest-balance debt first.
+export function allocatePaymentsToDebts(
+  payments: UIPayment[],
+  schedule: ScheduleEntry[],
+  debts: UIDebt[]
+): UIActual[] {
+  if (!payments.length || !debts.length) return [];
+
+  // Sum payments by month
+  const byMonth = new Map<string, number>();
+  for (const p of payments) {
+    byMonth.set(p.month, r2((byMonth.get(p.month) ?? 0) + p.amount));
+  }
+
+  const result: UIActual[] = [];
+
+  for (const [month, totalExtra] of byMonth) {
+    const entry = schedule.find(e => e.month === month);
+
+    // Build capacity list: how much extra each debt can absorb above its scheduled payment
+    const capacities = debts
+      .map(d => {
+        const snap = entry?.debtSnapshots.find(s => s.debtId === d.id);
+        const openingBalance = snap ? snap.openingBalance : d.balance;
+        const scheduled = snap ? snap.payment : d.minPayment;
+        return { debtId: d.id, capacity: r2(Math.max(0, openingBalance - scheduled)) };
+      })
+      .filter(x => x.capacity > 0)
+      .sort((a, b) => {
+        // Snowball: sort by opening balance ascending
+        const aSnap = entry?.debtSnapshots.find(s => s.debtId === a.debtId);
+        const bSnap = entry?.debtSnapshots.find(s => s.debtId === b.debtId);
+        const aOB = aSnap ? aSnap.openingBalance : (debts.find(d => d.id === a.debtId)?.balance ?? 0);
+        const bOB = bSnap ? bSnap.openingBalance : (debts.find(d => d.id === b.debtId)?.balance ?? 0);
+        return aOB - bOB;
+      });
+
+    let remaining = totalExtra;
+    for (const { debtId, capacity } of capacities) {
+      if (remaining <= 0) break;
+      const allocate = r2(Math.min(remaining, capacity));
+      result.push({ id: `alloc_${month}_${debtId}`, month, debtId, amount: allocate });
+      remaining = r2(remaining - allocate);
+    }
+  }
+
+  return result;
 }
 
 export function computeActualAdjustedDebts(

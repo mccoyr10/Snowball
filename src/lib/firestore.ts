@@ -13,7 +13,7 @@ import {
   orderBy,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import type { UserDoc, Household, Debt, Strategy, Actual, LegacyData } from "@/types";
+import type { UserDoc, Household, Debt, Strategy, Actual, Payment, LegacyData } from "@/types";
 
 // ─── User documents ───────────────────────────────────────────────────────────
 
@@ -162,6 +162,46 @@ export async function deleteActual(
   debtId: string
 ): Promise<void> {
   await deleteDoc(doc(db, "households", householdId, "actuals", `${month}_${debtId}`));
+}
+
+// ─── Payments (auto-allocated to snowball order) ──────────────────────────────
+
+export function subscribePayments(
+  householdId: string,
+  cb: (payments: Payment[]) => void
+): () => void {
+  const q = query(
+    collection(db, "households", householdId, "payments"),
+    orderBy("createdAt", "asc")
+  );
+  return onSnapshot(q, (snap) => {
+    cb(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Payment)));
+  });
+}
+
+export async function addPayment(
+  householdId: string,
+  month: string,
+  amount: number
+): Promise<string> {
+  const ref = await addDoc(collection(db, "households", householdId, "payments"), {
+    month,
+    amount,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function updatePayment(
+  householdId: string,
+  id: string,
+  amount: number
+): Promise<void> {
+  await updateDoc(doc(db, "households", householdId, "payments", id), { amount });
+}
+
+export async function deletePayment(householdId: string, id: string): Promise<void> {
+  await deleteDoc(doc(db, "households", householdId, "payments", id));
 }
 
 // ─── Household invite / join ──────────────────────────────────────────────────
