@@ -64,6 +64,13 @@ service cloud.firestore {
           get(/databases/$(database)/documents/households/$(resource.data.householdId)).data.memberIds;
     }
 
+    // Discount/promo codes — authenticated users can read to check validity.
+    // All writes go through the server via Admin SDK (bypasses these rules).
+    match /discountCodes/{code} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
     // Legacy data — any authenticated user can READ for one-time migration.
     // DELETE this block once all households have been migrated.
     match /snowball/{document=**} {
