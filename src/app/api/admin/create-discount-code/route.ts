@@ -1,6 +1,19 @@
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
+export async function GET(request: Request) {
+  const adminKey = process.env.ADMIN_API_KEY;
+  if (!adminKey) return Response.json({ error: "Admin API not configured." }, { status: 503 });
+  if (request.headers.get("Authorization") !== `Bearer ${adminKey}`) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const db = getAdminDb();
+  const snap = await db.collection("discountCodes").orderBy("createdAt", "desc").get();
+  const codes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  return Response.json({ codes });
+}
+
 export async function POST(request: Request) {
   const adminKey = process.env.ADMIN_API_KEY;
   if (!adminKey) {
