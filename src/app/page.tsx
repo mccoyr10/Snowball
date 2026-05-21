@@ -74,7 +74,7 @@ export default function Home() {
             Sign in
           </a>
           <a href="/register" className="btn primary" style={{ fontSize: 13, padding: "8px 16px", borderRadius: "var(--r-pill)" }}>
-            Start free →
+            Start free trial →
           </a>
         </div>
       </header>
@@ -108,12 +108,12 @@ export default function Home() {
         </p>
 
         <p style={{ fontSize: 13, color: "var(--sage-deep)", fontWeight: 500, marginBottom: "2.5rem" }}>
-          14-day free trial · $4.99/mo · Cancel any time
+          14-day free trial · Card required · $4.99/mo after · Cancel any time
         </p>
 
         <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" as const }}>
           <a href="/register" className="btn primary" style={{ fontSize: 15, padding: "14px 28px", borderRadius: "var(--r-pill)", justifyContent: "center" }}>
-            Start tracking free →
+            Start your free trial →
           </a>
           <a href="#how" className="btn" style={{ fontSize: 15, padding: "14px 28px", borderRadius: "var(--r-pill)", justifyContent: "center" }}>
             See how it works
@@ -309,7 +309,7 @@ export default function Home() {
         </p>
         <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" as const, marginBottom: "1.25rem" }}>
           <a href="/register" className="btn primary" style={{ fontSize: 15, padding: "14px 28px", borderRadius: "var(--r-pill)", justifyContent: "center" }}>
-            Start free — no card needed →
+            Start your free trial →
           </a>
           <a href="/login" className="btn" style={{ fontSize: 15, padding: "14px 28px", borderRadius: "var(--r-pill)", justifyContent: "center" }}>
             Sign in
@@ -319,7 +319,7 @@ export default function Home() {
           display: "inline-block", fontSize: 11, color: "var(--sage-deep)",
           background: "var(--sage-soft)", borderRadius: 20, padding: "5px 14px", fontWeight: 500,
         }}>
-          Free to try · $4.99/mo after · Cancel any time
+          14-day free trial · Card required · $4.99/mo after · Cancel any time
         </span>
       </section>
 

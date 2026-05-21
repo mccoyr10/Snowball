@@ -194,7 +194,7 @@ export default function PaywallGate({ children }: { children: React.ReactNode })
         </h2>
         <p style={{ color: "var(--ink-muted)", fontSize: 14, lineHeight: 1.6, margin: "0 0 24px" }}>
           {isIncomplete
-            ? "Start your 14-day free trial to access Snowball. Cancel any time."
+            ? "Start your 14-day free trial. A card is required — cancel any time before it ends and you won't be charged."
             : isExpired
             ? "Your free trial is over. Subscribe to keep tracking your debt payoff progress."
             : "You've been using Snowball during your trial. Subscribe to keep full access."}
@@ -223,7 +223,7 @@ export default function PaywallGate({ children }: { children: React.ReactNode })
             <span style={{ fontSize: 16, fontWeight: 400, color: "var(--ink-muted)" }}>/month</span>
           </div>
           <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 4 }}>
-            14 days free, then $4.99/month. Cancel any time.
+            14-day free trial, then $4.99/month. Card required. Cancel any time.
           </div>
         </div>
 
