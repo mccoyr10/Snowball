@@ -3,6 +3,7 @@ import { getAdminDb } from "@/lib/firebase-admin";
 import type { SubscriptionStatus } from "@/types";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 export async function POST(request: Request) {
   const stripeKey = process.env.STRIPE_SECRET_KEY;
@@ -33,31 +34,26 @@ export async function POST(request: Request) {
     return "canceled";
   }
 
-  const db = getAdminDb();
+  try {
+    const db = getAdminDb();
 
-  // Resolve a Firestore user doc ref by customerId, cross-checking the uid from
-  // metadata. Using customerId (from Stripe's side) as the authoritative lookup
-  // prevents metadata-tampering from affecting arbitrary accounts.
-  async function resolveUserRef(customerId: string, metaUid: string | undefined) {
-    if (!customerId) return null;
+    async function resolveUserRef(customerId: string, metaUid: string | undefined) {
+      if (!customerId) return null;
 
-    if (metaUid) {
-      const userSnap = await db.doc(`users/${metaUid}`).get();
-      if (userSnap.exists) {
-        const stored = userSnap.data()?.stripeCustomerId as string | undefined;
-        // Only trust metadata uid if the stored customerId matches or is unset
-        if (!stored || stored === customerId) {
-          return userSnap.ref;
+      if (metaUid) {
+        const userSnap = await db.doc(`users/${metaUid}`).get();
+        if (userSnap.exists) {
+          const stored = userSnap.data()?.stripeCustomerId as string | undefined;
+          if (!stored || stored === customerId) {
+            return userSnap.ref;
+          }
         }
       }
+
+      const snap = await db.collection("users").where("stripeCustomerId", "==", customerId).limit(1).get();
+      return snap.empty ? null : snap.docs[0].ref;
     }
 
-    // Fall back to a Firestore lookup by customerId
-    const snap = await db.collection("users").where("stripeCustomerId", "==", customerId).limit(1).get();
-    return snap.empty ? null : snap.docs[0].ref;
-  }
-
-  try {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
