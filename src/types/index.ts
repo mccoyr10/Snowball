@@ -10,6 +10,20 @@ export interface UserDoc {
   subscriptionStatus?: SubscriptionStatus;
   trialStartedAt?: Timestamp;
   stripeCustomerId?: string;
+  lifetimeAccess?: boolean;
+  extendedTrialEndsAt?: Timestamp;
+  accessGrantedVia?: string;
+}
+
+export interface DiscountCode {
+  type: "lifetime" | "extended_trial";
+  trialDays?: number;
+  maxUses: number | null;
+  currentUses: number;
+  expiresAt: Timestamp | null;
+  isActive: boolean;
+  purpose: string;
+  createdAt: Timestamp;
 }
 
 export interface Household {

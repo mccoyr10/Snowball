@@ -16,10 +16,17 @@ export function getTrialDaysRemaining(trialStartedAt: Timestamp | undefined): nu
   return Math.max(0, Math.ceil(TRIAL_DAYS - elapsed));
 }
 
-export function isAccessAllowed(status: SubscriptionStatus | undefined, trialStartedAt: Timestamp | undefined): boolean {
+export function isAccessAllowed(
+  status: SubscriptionStatus | undefined,
+  trialStartedAt: Timestamp | undefined,
+  lifetimeAccess?: boolean,
+  extendedTrialEndsAt?: Timestamp
+): boolean {
+  if (lifetimeAccess) return true;
   if (!status) return true;
   if (status === "active") return true;
   if (status === "trialing") return getTrialDaysRemaining(trialStartedAt) > 0;
+  if (extendedTrialEndsAt) return extendedTrialEndsAt.toDate() > new Date();
   return false;
 }
 
@@ -28,6 +35,11 @@ export default function PaywallGate({ children }: { children: React.ReactNode })
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [promoOpen, setPromoOpen] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoError, setPromoError] = useState("");
+  const [promoSuccess, setPromoSuccess] = useState("");
   const searchParams = useSearchParams();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -48,16 +60,42 @@ export default function PaywallGate({ children }: { children: React.ReactNode })
   }, []);
 
   useEffect(() => {
-    if (processing && isAccessAllowed(userDoc?.subscriptionStatus, userDoc?.trialStartedAt)) {
+    if (processing && isAccessAllowed(userDoc?.subscriptionStatus, userDoc?.trialStartedAt, userDoc?.lifetimeAccess, userDoc?.extendedTrialEndsAt)) {
       if (pollRef.current) clearInterval(pollRef.current);
       setProcessing(false);
       window.history.replaceState({}, "", "/dashboard");
     }
   }, [userDoc, processing]);
 
+  async function handleRedeemPromo() {
+    if (!user || !promoCode.trim()) return;
+    setPromoLoading(true);
+    setPromoError("");
+    setPromoSuccess("");
+    try {
+      const idToken = await getIdToken(user);
+      const res = await fetch("/api/discount/redeem", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ code: promoCode.trim() }),
+      });
+      const data = await res.json() as { error?: string; type?: string };
+      if (!res.ok) throw new Error(data.error || "Invalid code.");
+      setPromoSuccess(data.type === "lifetime" ? "Lifetime access granted!" : "Extended access granted!");
+      await refreshUserDoc();
+    } catch (e) {
+      setPromoError(e instanceof Error ? e.message : "Something went wrong.");
+    } finally {
+      setPromoLoading(false);
+    }
+  }
+
   if (!userDoc) return <>{children}</>;
 
-  const allowed = isAccessAllowed(userDoc.subscriptionStatus, userDoc.trialStartedAt);
+  const allowed = isAccessAllowed(userDoc.subscriptionStatus, userDoc.trialStartedAt, userDoc.lifetimeAccess, userDoc.extendedTrialEndsAt);
   if (allowed) return <>{children}</>;
 
   if (processing) {
@@ -212,6 +250,49 @@ export default function PaywallGate({ children }: { children: React.ReactNode })
         <p style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 12 }}>
           Secure payment via Stripe
         </p>
+
+        <div style={{ marginTop: 20, borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+          <button
+            onClick={() => { setPromoOpen(o => !o); setPromoError(""); setPromoSuccess(""); }}
+            style={{
+              background: "none", border: "none", cursor: "pointer",
+              fontSize: 13, color: "var(--ink-muted)", padding: 0,
+              textDecoration: "underline",
+            }}
+          >
+            {promoOpen ? "Hide" : "Have a promo code?"}
+          </button>
+
+          {promoOpen && (
+            <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  type="text"
+                  value={promoCode}
+                  onChange={e => setPromoCode(e.target.value.toUpperCase())}
+                  onKeyDown={e => e.key === "Enter" && handleRedeemPromo()}
+                  placeholder="ENTER CODE"
+                  style={{
+                    flex: 1, padding: "10px 12px", borderRadius: 8,
+                    border: "1px solid var(--border)", fontSize: 13,
+                    fontFamily: "monospace", letterSpacing: 1,
+                    background: "var(--surface)", color: "var(--ink)",
+                  }}
+                />
+                <button
+                  onClick={handleRedeemPromo}
+                  disabled={promoLoading || !promoCode.trim()}
+                  className="btn primary"
+                  style={{ padding: "10px 16px", fontSize: 13, opacity: promoLoading ? 0.6 : 1 }}
+                >
+                  {promoLoading ? "…" : "Apply"}
+                </button>
+              </div>
+              {promoError && <p style={{ fontSize: 12, color: "var(--danger)", margin: 0 }}>{promoError}</p>}
+              {promoSuccess && <p style={{ fontSize: 12, color: "var(--sage)", margin: 0 }}>{promoSuccess}</p>}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
