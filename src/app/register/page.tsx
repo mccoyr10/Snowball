@@ -43,6 +43,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [promoCode, setPromoCode] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -58,6 +59,16 @@ export default function RegisterPage() {
     );
   }
 
+  async function redeemPromo(code: string): Promise<boolean> {
+    const idToken = await getIdToken(auth.currentUser!);
+    const res = await fetch("/api/discount/redeem", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({ code: code.trim() }),
+    });
+    return res.ok;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -68,7 +79,18 @@ export default function RegisterPage() {
     setSubmitting(true);
     try {
       await signUp(email, password, name);
-      await redirectToCheckout(email);
+      if (promoCode.trim()) {
+        const redeemed = await redeemPromo(promoCode);
+        if (!redeemed) {
+          setError("Promo code is invalid or expired. You can still start a free trial below.");
+          setSubmitting(false);
+          router.replace("/dashboard");
+          return;
+        }
+        router.replace("/dashboard");
+      } else {
+        await redirectToCheckout(email);
+      }
     } catch (err) {
       if (err instanceof FirebaseError) setError(friendlyError(err.code));
       else setError("Something went wrong. Please try again.");
@@ -151,6 +173,20 @@ export default function RegisterPage() {
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Promo code <span className="font-normal text-gray-400">(optional)</span>
+          </label>
+          <input
+            type="text"
+            autoComplete="off"
+            value={promoCode}
+            onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+            placeholder="Enter code if you have one"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 font-mono tracking-wider"
           />
         </div>
 
