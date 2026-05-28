@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
@@ -40,9 +40,34 @@ export default function Home() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
+  const [auditInputs, setAuditInputs] = useState({ debt: "", apr: "", income: "" });
+  const [auditResults, setAuditResults] = useState<{
+    dailyCost: number;
+    bankHours: number;
+    monthlyInterest: number;
+    annualInterest: number;
+  } | null>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!loading && user) router.replace("/dashboard");
   }, [user, loading, router]);
+
+  function runAudit(e: React.FormEvent) {
+    e.preventDefault();
+    const debt = parseFloat(auditInputs.debt.replace(/[^0-9.]/g, ""));
+    const apr = parseFloat(auditInputs.apr.replace(/[^0-9.]/g, ""));
+    const income = parseFloat(auditInputs.income.replace(/[^0-9.]/g, ""));
+    if (!debt || !apr || !income || debt <= 0 || apr <= 0 || income <= 0) return;
+    const annualInterest = debt * (apr / 100);
+    setAuditResults({
+      dailyCost: annualInterest / 365,
+      bankHours: annualInterest / 12 / (income / 160),
+      monthlyInterest: annualInterest / 12,
+      annualInterest,
+    });
+    setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  }
 
   if (loading || user) {
     return (
@@ -69,56 +94,252 @@ export default function Home() {
         padding: "1rem 2rem",
       }}>
         <Logo />
-        <div style={{ display: "flex", gap: 8 }}>
-          <a href="/login" className="btn" style={{ fontSize: 13, padding: "8px 16px", borderRadius: "var(--r-pill)" }}>
-            Sign in
-          </a>
-          <a href="/register" className="btn primary" style={{ fontSize: 13, padding: "8px 16px", borderRadius: "var(--r-pill)" }}>
-            Start free trial →
-          </a>
-        </div>
+        <a href="/login" style={{ fontSize: 13, color: "var(--ink-muted)", textDecoration: "none" }}>
+          Sign in
+        </a>
       </header>
 
-      {/* ── HERO ── */}
-      <section style={{ padding: "6rem 2rem 5rem", textAlign: "center", maxWidth: 760, margin: "0 auto" }}>
-        <div style={{
-          display: "inline-block", fontSize: 11, fontWeight: 500,
-          letterSpacing: "2px", textTransform: "uppercase" as const,
-          color: "var(--sage)", background: "var(--sage-soft)",
-          padding: "5px 14px", borderRadius: 20, marginBottom: "2rem",
-        }}>
-          Debt snowball tracker
+      {/* ── HERO / AUDIT TOOL ── */}
+      <section style={{ padding: "5rem 2rem 4rem", maxWidth: 680, margin: "0 auto" }}>
+
+        <div style={{ textAlign: "center", marginBottom: "2.5rem" }}>
+          <div style={{
+            display: "inline-block", fontSize: 11, fontWeight: 600,
+            letterSpacing: "2px", textTransform: "uppercase" as const,
+            color: "var(--info)", background: "var(--info-soft)",
+            padding: "5px 14px", borderRadius: 20, marginBottom: "1.5rem",
+          }}>
+            Financial Audit Tool
+          </div>
+          <h1 style={{
+            fontFamily: "var(--font-display)",
+            fontSize: "clamp(32px, 5.5vw, 52px)",
+            fontWeight: 400,
+            lineHeight: 1.1,
+            letterSpacing: "-1.5px",
+            color: "var(--ink)",
+            margin: "0 0 1rem",
+          }}>
+            Is your debt costing you<br />
+            <em style={{ color: "var(--info)" }}>more than you think?</em>
+          </h1>
+          <p style={{ fontSize: 17, fontWeight: 300, lineHeight: 1.65, color: "var(--ink-muted)", maxWidth: 480, margin: "0 auto" }}>
+            Run a free 30-second audit to see exactly what your debt is costing you — in dollars and hours of your life.
+          </p>
         </div>
 
-        <h1 style={{
-          fontFamily: "var(--font-display)",
-          fontSize: "clamp(40px, 7vw, 62px)",
-          fontWeight: 400,
-          lineHeight: 1.06,
-          letterSpacing: "-2px",
-          color: "var(--ink)",
-          margin: "0 0 1.5rem",
-        }}>
-          You&apos;ve been holding<br />your breath.<br />
-          <em style={{ color: "var(--sage)" }}>Time to exhale.</em>
-        </h1>
+        {/* Audit Input Card */}
+        <form onSubmit={runAudit}>
+          <div style={{
+            background: "var(--surface)",
+            border: "1px solid var(--line-strong)",
+            borderRadius: "var(--r-lg)",
+            padding: "2rem",
+            boxShadow: "var(--shadow-md)",
+          }}>
+            <div style={{ display: "grid", gap: "1.25rem", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
 
-        <p style={{ fontSize: 18, fontWeight: 300, lineHeight: 1.65, color: "var(--ink-muted)", maxWidth: 500, margin: "0 auto 1.5rem" }}>
-          See exactly when every debt dies. Model scenarios. Watch the snowball roll. Finally breathe again.
-        </p>
+              {/* Total Debt Balance */}
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--ink-muted)", marginBottom: 6, letterSpacing: "0.05em", textTransform: "uppercase" as const }}>
+                  Total Debt Balance
+                </label>
+                <div style={{ position: "relative" }}>
+                  <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--ink-muted)", fontSize: 14, pointerEvents: "none" as const }}>$</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="45,000"
+                    value={auditInputs.debt}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/[^0-9]/g, "");
+                      setAuditInputs(p => ({ ...p, debt: raw ? Number(raw).toLocaleString() : "" }));
+                    }}
+                    className="form-input"
+                    style={{ paddingLeft: 28 }}
+                  />
+                </div>
+              </div>
 
-        <p style={{ fontSize: 13, color: "var(--sage-deep)", fontWeight: 500, marginBottom: "2.5rem" }}>
-          14-day free trial · Card required · $4.99/mo after · Cancel any time
-        </p>
+              {/* Average APR */}
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--ink-muted)", marginBottom: 6, letterSpacing: "0.05em", textTransform: "uppercase" as const }}>
+                  Average APR
+                </label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="18.5"
+                    value={auditInputs.apr}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9.]/g, "");
+                      const parts = val.split(".");
+                      const sanitized = parts.length > 2 ? parts[0] + "." + parts.slice(1).join("") : val;
+                      setAuditInputs(p => ({ ...p, apr: sanitized }));
+                    }}
+                    className="form-input"
+                    style={{ paddingRight: 28 }}
+                  />
+                  <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "var(--ink-muted)", fontSize: 14, pointerEvents: "none" as const }}>%</span>
+                </div>
+              </div>
 
-        <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" as const }}>
-          <a href="/register" className="btn primary" style={{ fontSize: 15, padding: "14px 28px", borderRadius: "var(--r-pill)", justifyContent: "center" }}>
-            Start your free trial →
-          </a>
-          <a href="#how" className="btn" style={{ fontSize: 15, padding: "14px 28px", borderRadius: "var(--r-pill)", justifyContent: "center" }}>
-            See how it works
-          </a>
-        </div>
+              {/* Monthly Household Income */}
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--ink-muted)", marginBottom: 6, letterSpacing: "0.05em", textTransform: "uppercase" as const }}>
+                  Monthly Income
+                </label>
+                <div style={{ position: "relative" }}>
+                  <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--ink-muted)", fontSize: 14, pointerEvents: "none" as const }}>$</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="6,500"
+                    value={auditInputs.income}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/[^0-9]/g, "");
+                      setAuditInputs(p => ({ ...p, income: raw ? Number(raw).toLocaleString() : "" }));
+                    }}
+                    className="form-input"
+                    style={{ paddingLeft: 28 }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginTop: "1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" as const, gap: 12 }}>
+              <p style={{ fontSize: 12, color: "var(--ink-faint)", margin: 0 }}>
+                Confidential · No account required · Results generated locally
+              </p>
+              <button type="submit" className="btn primary" style={{ fontSize: 14, padding: "11px 24px", borderRadius: "var(--r-pill)" }}>
+                Run Audit →
+              </button>
+            </div>
+          </div>
+        </form>
+
+        {/* Audit Results Card */}
+        {auditResults && (
+          <div ref={resultsRef} style={{ marginTop: "2rem" }}>
+            <div style={{
+              background: "var(--surface)",
+              border: "1px solid #cbd5e1",
+              borderRadius: "var(--r-lg)",
+              overflow: "hidden",
+              boxShadow: "var(--shadow-md)",
+            }}>
+
+              {/* Blue accent bar */}
+              <div style={{ height: 5, background: "var(--info)" }} />
+
+              {/* Report header */}
+              <div style={{
+                padding: "1.25rem 1.75rem",
+                borderBottom: "1px solid var(--line)",
+                display: "flex", justifyContent: "space-between", alignItems: "flex-start",
+                flexWrap: "wrap" as const, gap: 8,
+              }}>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "2px", textTransform: "uppercase" as const, color: "var(--info)", marginBottom: 4 }}>
+                    Debt Audit Snapshot — Preliminary Report
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--ink-muted)" }}>
+                    Generated {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                  </div>
+                </div>
+                <div style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: "1.5px",
+                  textTransform: "uppercase" as const,
+                  border: "1.5px solid #94a3b8",
+                  color: "#94a3b8",
+                  borderRadius: 4, padding: "3px 8px",
+                }}>
+                  Preliminary
+                </div>
+              </div>
+
+              {/* Two metric grid */}
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                borderBottom: "1px solid var(--line)",
+              }}>
+                {/* Metric 1: Interest Leakage */}
+                <div style={{ padding: "1.5rem 1.75rem", borderRight: "1px solid var(--line)" }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: "var(--ink-faint)", marginBottom: 8 }}>
+                    Interest Leakage
+                  </div>
+                  <div style={{
+                    fontSize: "clamp(24px, 4vw, 34px)", fontWeight: 700,
+                    color: "var(--danger)", letterSpacing: "-1px",
+                    fontVariantNumeric: "tabular-nums",
+                    lineHeight: 1.1, marginBottom: 6,
+                  }}>
+                    ${auditResults.dailyCost.toFixed(2)}
+                    <span style={{ fontSize: "0.45em", fontWeight: 400, color: "var(--ink-muted)", letterSpacing: 0 }}> / day</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: "var(--ink-muted)", fontWeight: 300, lineHeight: 1.5 }}>
+                    Daily cost of carrying this debt
+                  </div>
+                </div>
+
+                {/* Metric 2: Work-for-the-Bank Hours */}
+                <div style={{ padding: "1.5rem 1.75rem" }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: "var(--ink-faint)", marginBottom: 8 }}>
+                    Work-for-the-Bank™ Hours
+                  </div>
+                  <div style={{
+                    fontSize: "clamp(24px, 4vw, 34px)", fontWeight: 700,
+                    color: "var(--warn)", letterSpacing: "-1px",
+                    fontVariantNumeric: "tabular-nums",
+                    lineHeight: 1.1, marginBottom: 6,
+                  }}>
+                    {auditResults.bankHours.toFixed(1)}
+                    <span style={{ fontSize: "0.45em", fontWeight: 400, color: "var(--ink-muted)", letterSpacing: 0 }}> hrs/mo</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: "var(--ink-muted)", fontWeight: 300, lineHeight: 1.5 }}>
+                    Hours earned exclusively for lenders each month
+                  </div>
+                </div>
+              </div>
+
+              {/* Professional Recommendation */}
+              <div style={{ padding: "1.5rem 1.75rem" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase" as const, color: "var(--ink-muted)", marginBottom: "0.75rem" }}>
+                  Professional Recommendation
+                </div>
+                <p style={{ fontSize: 14, color: "var(--ink-muted)", lineHeight: 1.65, fontWeight: 300, margin: "0 0 1.25rem" }}>
+                  At <strong style={{ color: "var(--ink)", fontWeight: 600 }}>${auditResults.dailyCost.toFixed(2)}/day</strong> in interest alone, you are funding your lenders&apos; balance sheet — not your own. The Exhale Debt full tracker builds your exact debt exit plan: payoff dates, snowball sequencing, scenario modeling, and month-by-month adjustments. One purchase. Lifetime access.
+                </p>
+                <a
+                  href="/register"
+                  className="btn primary"
+                  style={{ fontSize: 14, padding: "12px 22px", borderRadius: "var(--r-pill)", display: "inline-flex" }}
+                >
+                  Access Full Exhale Debt Tracker — $49 Lifetime Access →
+                </a>
+                <div style={{ marginTop: "0.75rem", fontSize: 12, color: "var(--ink-faint)" }}>
+                  One-time payment · Lifetime access · No subscription
+                </div>
+              </div>
+            </div>
+
+            {/* Re-run link */}
+            <div style={{ textAlign: "center", marginTop: "1rem" }}>
+              <button
+                onClick={() => { setAuditResults(null); setAuditInputs({ debt: "", apr: "", income: "" }); }}
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  fontSize: 13, color: "var(--ink-muted)", textDecoration: "underline",
+                  fontFamily: "var(--font-ui)",
+                }}
+              >
+                Edit inputs / Re-run audit
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* ── TENSION STRIP ── */}
@@ -302,25 +523,19 @@ export default function Home() {
           letterSpacing: "-1px",
           color: "var(--ink)",
         }}>
-          Ready to see your<br /><em style={{ color: "var(--sage)" }}>finish line?</em>
+          Ready to get your<br /><em style={{ color: "var(--sage)" }}>full debt exit plan?</em>
         </h2>
         <p style={{ fontSize: 16, color: "var(--ink-muted)", fontWeight: 300, maxWidth: 440, margin: "0 auto 2.5rem" }}>
           Enter your debts. Set your payment. Watch the math work for you — not against you.
         </p>
-        <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" as const, marginBottom: "1.25rem" }}>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" as const, marginBottom: "1rem" }}>
           <a href="/register" className="btn primary" style={{ fontSize: 15, padding: "14px 28px", borderRadius: "var(--r-pill)", justifyContent: "center" }}>
-            Start your free trial →
-          </a>
-          <a href="/login" className="btn" style={{ fontSize: 15, padding: "14px 28px", borderRadius: "var(--r-pill)", justifyContent: "center" }}>
-            Sign in
+            Get Full Access — $49 →
           </a>
         </div>
-        <span style={{
-          display: "inline-block", fontSize: 11, color: "var(--sage-deep)",
-          background: "var(--sage-soft)", borderRadius: 20, padding: "5px 14px", fontWeight: 500,
-        }}>
-          14-day free trial · Card required · $4.99/mo after · Cancel any time
-        </span>
+        <div style={{ fontSize: 12, color: "var(--ink-faint)" }}>
+          $49 one-time · Lifetime access · No subscription
+        </div>
       </section>
 
       {/* ── FOOTER ── */}
