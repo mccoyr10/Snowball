@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { getIdToken } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 import { useDebts } from "@/hooks/useDebts";
 import { useStrategy } from "@/hooks/useStrategy";
@@ -28,7 +30,7 @@ import ActualPayments from "@/components/snowball/ActualPayments";
 import ChatPanel from "@/components/snowball/ChatPanel";
 import OnboardingModal, { shouldShowOnboarding } from "@/components/snowball/OnboardingModal";
 import HouseholdModal from "@/components/snowball/HouseholdModal";
-import PaywallGate from "@/components/PaywallGate";
+import { isAccessAllowed } from "@/components/PaywallGate";
 import TrialBanner from "@/components/snowball/TrialBanner";
 import MigrationBanner from "@/components/snowball/MigrationBanner";
 
@@ -43,11 +45,174 @@ function toUIDebt(d: Debt): UIDebt {
   };
 }
 
+// ── Advisor paywall panel (shown when user hasn't purchased advisor access) ──
+function AdvisorPaywall() {
+  const { user, refreshUserDoc } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [promoOpen, setPromoOpen] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoError, setPromoError] = useState("");
+  const [promoSuccess, setPromoSuccess] = useState("");
+
+  async function handleUnlock() {
+    if (!user || loading) return;
+    setLoading(true);
+    try {
+      const idToken = await getIdToken(user);
+      const res = await fetch("/api/stripe/create-advisor-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ email: user.email ?? "" }),
+      });
+      if (!res.ok) throw new Error("Checkout unavailable.");
+      const { url } = await res.json() as { url: string };
+      window.location.href = url;
+    } catch {
+      setLoading(false);
+    }
+  }
+
+  async function handleRedeemPromo() {
+    if (!user || !promoCode.trim()) return;
+    setPromoLoading(true);
+    setPromoError("");
+    setPromoSuccess("");
+    try {
+      const idToken = await getIdToken(user);
+      const res = await fetch("/api/discount/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ code: promoCode.trim() }),
+      });
+      const data = await res.json() as { error?: string; type?: string };
+      if (!res.ok) throw new Error(data.error || "Invalid code.");
+      setPromoSuccess(data.type === "lifetime" ? "Advisor unlocked!" : "Access granted!");
+      await refreshUserDoc();
+    } catch (e) {
+      setPromoError(e instanceof Error ? e.message : "Something went wrong.");
+    } finally {
+      setPromoLoading(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="greeting">
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>Exhale Advisor</div>
+          <h1>Your <span className="h1-italic">advisor.</span></h1>
+          <p>Personalized AI guidance based on your actual debt plan.</p>
+        </div>
+      </div>
+
+      <div className="card" style={{ maxWidth: 440, margin: "0 auto 24px" }}>
+        {/* Header */}
+        <div className="card-head">
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: "50%",
+              background: "var(--surface-sunk)", border: "1px solid var(--line)",
+              display: "grid", placeItems: "center", flexShrink: 0,
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ink-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            </div>
+            <div>
+              <div style={{ fontSize: 14.5, fontWeight: 600, color: "var(--ink)" }}>Exhale Advisor</div>
+              <div style={{ fontSize: 12, color: "var(--ink-muted)" }}>Unlock for lifetime access</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Feature list */}
+        <div style={{ padding: "1.25rem 1.5rem", borderBottom: "0.5px solid var(--line)" }}>
+          {[
+            "Personalized analysis of your specific debt plan",
+            "What-if scenarios using your real balances and dates",
+            "Proactive insights when your data changes",
+            "Ask anything — strategy, refinancing, priorities",
+          ].map(f => (
+            <div key={f} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 10 }}>
+              <span style={{ color: "var(--sage)", marginTop: 1, flexShrink: 0 }}>✓</span>
+              <span style={{ fontSize: 13, color: "var(--ink-muted)", lineHeight: 1.5 }}>{f}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Price + CTA */}
+        <div style={{ padding: "1.25rem 1.5rem" }}>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.5px" }}>
+              $49
+              <span style={{ fontSize: 13, fontWeight: 400, color: "var(--ink-muted)", marginLeft: 6 }}>
+                one-time payment
+              </span>
+            </div>
+            <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 2 }}>
+              Lifetime access · No subscription · No renewals
+            </div>
+          </div>
+
+          <button
+            onClick={handleUnlock}
+            disabled={loading}
+            className="btn primary"
+            style={{ width: "100%", justifyContent: "center", fontSize: 14, padding: "12px 20px", borderRadius: "var(--r-pill)" }}
+          >
+            {loading ? "Redirecting…" : "Unlock Exhale Advisor — $49 →"}
+          </button>
+
+          {/* Promo code */}
+          <div style={{ marginTop: 16 }}>
+            <button
+              onClick={() => setPromoOpen(p => !p)}
+              style={{ background: "none", border: "none", fontSize: 12, color: "var(--info)", cursor: "pointer", padding: 0, fontFamily: "var(--font-ui)" }}
+            >
+              {promoOpen ? "▾" : "▸"} Have a promo code?
+            </button>
+            {promoOpen && (
+              <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+                <input
+                  type="text"
+                  placeholder="Enter code"
+                  value={promoCode}
+                  onChange={e => setPromoCode(e.target.value)}
+                  className="form-input"
+                  style={{ flex: 1, fontSize: 13 }}
+                />
+                <button
+                  onClick={handleRedeemPromo}
+                  disabled={promoLoading || !promoCode.trim()}
+                  className="btn"
+                  style={{ fontSize: 13, flexShrink: 0 }}
+                >
+                  {promoLoading ? "…" : "Apply"}
+                </button>
+              </div>
+            )}
+            {promoError && (
+              <p style={{ fontSize: 12, color: "var(--danger)", marginTop: 6, margin: "6px 0 0" }}>{promoError}</p>
+            )}
+            {promoSuccess && (
+              <p style={{ fontSize: 12, color: "var(--sage)", marginTop: 6, margin: "6px 0 0" }}>{promoSuccess}</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── ────────────────────────────────────────────────────────────────────────── ──
+
 const STRATEGY_DEBOUNCE_MS = 800;
 let toastCounter = 0;
 
 export default function SnowballApp() {
-  const { user, userDoc, signOut } = useAuth();
+  const { user, userDoc, signOut, refreshUserDoc } = useAuth();
   const householdId = userDoc?.householdId ?? null;
 
   const { debts: firestoreDebts, loading: debtsLoading } = useDebts(householdId);
@@ -62,6 +227,7 @@ export default function SnowballApp() {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showHousehold, setShowHousehold] = useState(false);
+  const [processing, setProcessing] = useState(false);
 
   const [settings, setSettingsLocal] = useState<UISettings>({
     monthlyBudget: 0,
@@ -70,6 +236,33 @@ export default function SnowballApp() {
 
   const strategyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingRef = useRef(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Poll for advisor activation after returning from Stripe checkout
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("subscribed") !== "true") return;
+    setProcessing(true);
+    let attempts = 0;
+    pollRef.current = setInterval(async () => {
+      attempts++;
+      await refreshUserDoc();
+      if (attempts >= 15) {
+        clearInterval(pollRef.current!);
+        setProcessing(false);
+      }
+    }, 2000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (processing && userDoc?.lifetimeAccess) {
+      if (pollRef.current) clearInterval(pollRef.current);
+      setProcessing(false);
+      window.history.replaceState({}, "", "/dashboard");
+    }
+  }, [userDoc, processing]);
 
   function addToast(message: string, type: ToastItem["type"] = "success") {
     const id = String(++toastCounter);
@@ -77,7 +270,6 @@ export default function SnowballApp() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
   }
 
-  // Sync strategy from Firestore on first load
   useEffect(() => {
     if (!strategyLoading && strategy) {
       setSettingsLocal({
@@ -123,8 +315,6 @@ export default function SnowballApp() {
 
   const loading = debtsLoading || strategyLoading || paymentsLoading;
 
-  // Show onboarding only for genuinely new users: householdId must be loaded
-  // (rules out the brief window where useDebts(null) returns empty before auth resolves)
   useEffect(() => {
     if (householdId && !loading && firestoreDebts.length === 0 && shouldShowOnboarding()) {
       setShowOnboarding(true);
@@ -132,7 +322,6 @@ export default function SnowballApp() {
   }, [householdId, loading, firestoreDebts.length]);
 
   const debts = firestoreDebts.map(toUIDebt);
-  // Two-pass calculation: prelim schedule → allocate payments → adjust debts → final schedule
   const prelimSchedule = buildSnowballSchedule(debts, settings);
   const allocatedActuals = allocatePaymentsToDebts(payments, prelimSchedule, debts);
   const { adjustedDebts } = computeActualAdjustedDebts(debts, prelimSchedule, allocatedActuals);
@@ -227,6 +416,14 @@ export default function SnowballApp() {
   const displayName = userDoc?.displayName || user?.email || "";
   const pendingDebtName = pendingDeleteId ? (debts.find(d => d.id === pendingDeleteId)?.name ?? "this debt") : "";
 
+  // Advisor is the only gated feature — check lifetimeAccess
+  const advisorUnlocked = isAccessAllowed(
+    userDoc?.subscriptionStatus,
+    userDoc?.trialStartedAt,
+    userDoc?.lifetimeAccess,
+    userDoc?.extendedTrialEndsAt,
+  );
+
   const tabs: Record<string, React.ReactNode> = {
     dashboard: <DashboardTab debts={adjustedDebts} settings={settings} summary={summary} schedule={schedule} setActiveTab={setActiveTab} />,
     debts: (
@@ -255,11 +452,31 @@ export default function SnowballApp() {
         planStartDate={settings.startDate}
       />
     ),
-    advisor: <ChatPanel debts={adjustedDebts} settings={settings} summary={summary} />,
+    advisor: advisorUnlocked
+      ? <ChatPanel debts={adjustedDebts} settings={settings} summary={summary} />
+      : <AdvisorPaywall />,
   };
 
   return (
-    <PaywallGate>
+    <>
+      {/* Activation overlay — shown while polling after Stripe checkout return */}
+      {processing && (
+        <div style={{
+          position: "fixed", inset: 0,
+          background: "rgba(246,248,250,0.92)",
+          backdropFilter: "blur(8px)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 1000,
+        }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>🌬️</div>
+            <p style={{ fontSize: 15, color: "var(--ink-muted)", fontWeight: 500 }}>
+              Activating your advisor…
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="app">
         <NavBar
           activeTab={activeTab}
@@ -312,6 +529,6 @@ export default function SnowballApp() {
       {showHousehold && (
         <HouseholdModal onClose={() => setShowHousehold(false)} />
       )}
-    </PaywallGate>
+    </>
   );
 }

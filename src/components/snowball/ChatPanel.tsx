@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import { getIdToken } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -18,21 +18,15 @@ interface ChatPanelProps {
   summary: Summary;
 }
 
-const suggestions = [
-  "Should I switch to avalanche?",
-  "What if I add $200/month?",
-  "How can I find extra money?",
-  "When can I refinance?",
-];
-
 export default function ChatPanel({ debts, settings, summary }: ChatPanelProps) {
   const { userDoc } = useAuth();
   const firstName = userDoc?.displayName?.split(" ")[0] || "there";
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const [dataChanged, setDataChanged] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
+  const initializedRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (chatRef.current) {
@@ -40,39 +34,88 @@ export default function ChatPanel({ debts, settings, summary }: ChatPanelProps) 
     }
   }, [messages, loading]);
 
-  async function sendMessage(text?: string) {
+  // Key that changes whenever the user's debt data changes
+  const dataKey = `${debts.length}-${summary.totalBalance}-${summary.monthsRemaining}`;
+
+  // Build enriched context from current state
+  function buildContext() {
+    const monthsIntoPlan = (() => {
+      const [y, m] = (settings.startDate || "").split("-").map(Number);
+      if (!y || !m) return 0;
+      const start = new Date(y, m - 1, 1);
+      const now = new Date();
+      return Math.max(0, (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth()));
+    })();
+
+    return {
+      userName: firstName,
+      monthsIntoPlan,
+      strategyMethod: "snowball",
+      monthlyBudget: formatCurrency(settings.monthlyBudget),
+      totalDebt: formatCurrency(summary.totalBalance),
+      projectedPayoff: summary.projectedPayoffDate ?? "unknown",
+      monthsRemaining: summary.monthsRemaining,
+      totalInterest: formatCurrency(summary.totalInterestPlanned),
+      interestIfMinOnly: formatCurrency(summary.interestIfMinOnly),
+      savingsVsMinOnly: formatCurrency(summary.savingsVsMinOnly),
+      debts: debts.map(d => ({
+        name: d.name,
+        balance: formatCurrency(d.balance),
+        apr: `${d.apr}%`,
+        minPayment: formatCurrency(d.minPayment),
+        pctPaidDown: d.startingBalance && d.startingBalance > 0
+          ? `${Math.round((1 - d.balance / d.startingBalance) * 100)}%`
+          : undefined,
+        projectedPayoffDate: summary.debtPayoffDates?.[d.id],
+        totalInterestToGo: formatCurrency(summary.debtInterestTotals?.[d.id] ?? 0),
+      })),
+    };
+  }
+
+  // Dynamic suggestion chips based on actual debt data
+  const suggestions = useMemo(() => {
+    const chips: string[] = [];
+    const sorted = [...debts].sort((a, b) => a.balance - b.balance);
+    const snowballTarget = sorted[0];
+    if (snowballTarget) chips.push(`When will I pay off my ${snowballTarget.name}?`);
+
+    const highApr = [...debts].sort((a, b) => b.apr - a.apr)[0];
+    if (highApr && highApr.apr > 15 && highApr.id !== snowballTarget?.id) {
+      chips.push(`My ${highApr.name} is ${highApr.apr}% APR — should I target it first?`);
+    } else {
+      chips.push("Should I switch to the avalanche method?");
+    }
+
+    chips.push("What if I add $200/month to my budget?");
+    chips.push("What's my biggest interest cost right now?");
+    return chips.slice(0, 4);
+  }, [debts]);
+
+  // Core send function — hidden=true sends the prompt to API but only shows the assistant reply
+  async function sendMessage(text?: string, hidden = false) {
     const msgText = (text || input).trim();
     if (!msgText || loading) return;
-    setInput("");
+    if (!hidden) setInput("");
 
-    const newMessages: Message[] = [...messages, { role: "user", content: msgText }];
-    setMessages(newMessages);
+    const userMsg: Message = { role: "user", content: msgText };
+    const newMessages: Message[] = hidden ? [...messages] : [...messages, userMsg];
+    if (!hidden) setMessages(newMessages);
     setLoading(true);
+    setDataChanged(false);
 
     try {
-      const context = {
-        debts: debts.map(d => ({
-          name: d.name,
-          balance: formatCurrency(d.balance),
-          apr: d.apr + "%",
-          minPayment: formatCurrency(d.minPayment),
-        })),
-        monthlyBudget: formatCurrency(settings.monthlyBudget),
-        totalDebt: formatCurrency(summary.totalBalance),
-        projectedPayoff: summary.projectedPayoffDate ?? "unknown",
-        monthsRemaining: summary.monthsRemaining,
-        totalInterest: formatCurrency(summary.totalInterestPlanned),
-        savingsVsMinOnly: formatCurrency(summary.savingsVsMinOnly),
-      };
-
       const idToken = auth.currentUser ? await getIdToken(auth.currentUser) : "";
+      const apiMessages = hidden
+        ? [...messages, { role: "user" as const, content: msgText }]
+        : newMessages;
+
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ messages: newMessages, context }),
+        body: JSON.stringify({ messages: apiMessages, context: buildContext() }),
       });
 
       if (!res.ok) {
@@ -84,11 +127,33 @@ export default function ChatPanel({ debts, settings, summary }: ChatPanelProps) 
       setMessages(prev => [...prev, { role: "assistant", content: data.reply }]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error";
-      setMessages(prev => [...prev, { role: "assistant", content: `Sorry, I couldn't respond right now. (${msg})` }]);
+      if (!hidden) {
+        setMessages(prev => [...prev, { role: "assistant", content: `Sorry, I couldn't respond right now. (${msg})` }]);
+      }
     } finally {
       setLoading(false);
     }
   }
+
+  // Auto-trigger proactive analysis when debts first load or data changes significantly
+  useEffect(() => {
+    if (debts.length === 0) return;
+    if (initializedRef.current === null) {
+      // First load — auto-analyze
+      initializedRef.current = dataKey;
+      sendMessage(
+        "Give me a brief personalized assessment of my debt situation: my #1 opportunity and my #1 risk, specific to my actual debts and numbers. Keep it to 3-4 sentences.",
+        true
+      );
+    } else if (initializedRef.current !== dataKey && messages.length > 0) {
+      // Data changed while conversation is active
+      initializedRef.current = dataKey;
+      setDataChanged(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataKey]);
+
+  const snowballTarget = debts.length > 0 ? [...debts].sort((a, b) => a.balance - b.balance)[0] : null;
 
   return (
     <div>
@@ -113,7 +178,6 @@ export default function ChatPanel({ debts, settings, summary }: ChatPanelProps) 
               background: "linear-gradient(135deg, var(--info), #6b8fd9)",
               display: "grid", placeItems: "center", color: "#fff", flexShrink: 0,
             }}>
-              {/* Spark icon */}
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2L9.5 9.5 2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5z"/>
               </svg>
@@ -125,7 +189,7 @@ export default function ChatPanel({ debts, settings, summary }: ChatPanelProps) 
               </div>
             </div>
           </div>
-          <button className="btn sm" onClick={() => setMessages([])}>
+          <button className="btn sm" onClick={() => { setMessages([]); initializedRef.current = null; }}>
             New conversation
           </button>
         </div>
@@ -136,10 +200,12 @@ export default function ChatPanel({ debts, settings, summary }: ChatPanelProps) 
           className="chat"
           style={{ maxHeight: 480, overflowY: "auto" }}
         >
-          {messages.length === 0 && (
+          {messages.length === 0 && !loading && (
             <div className="msg bot">
               <div>
-                Hi there! I know your debts and snowball plan. Ask me anything about your payoff strategy.
+                {snowballTarget && summary.projectedPayoffDate
+                  ? `Hi ${firstName}! You're currently focused on your ${snowballTarget.name}. Your debt-free date is ${summary.projectedPayoffDate} — ${summary.monthsRemaining} months away. Analyzing your plan now…`
+                  : "Hi there! I know your debts and snowball plan inside out. Ask me anything about your payoff strategy."}
               </div>
               <div className="msg-meta">Just now</div>
             </div>
@@ -165,8 +231,33 @@ export default function ChatPanel({ debts, settings, summary }: ChatPanelProps) 
               </span>
             </div>
           )}
-          <div ref={bottomRef} />
         </div>
+
+        {/* Data changed notification */}
+        {dataChanged && !loading && (
+          <div style={{
+            padding: "8px 16px",
+            background: "var(--info-soft)",
+            borderTop: "1px solid var(--line)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+          }}>
+            <span style={{ fontSize: 13, color: "var(--info)" }}>
+              📊 Your debt data changed — refresh for an updated analysis.
+            </span>
+            <button
+              className="btn sm"
+              onClick={() => sendMessage(
+                "My debt data just changed. Give me a quick updated assessment of where I stand now.",
+                true
+              )}
+            >
+              Refresh analysis
+            </button>
+          </div>
+        )}
 
         {/* Suggestions */}
         <div className="suggested">

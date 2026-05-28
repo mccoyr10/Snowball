@@ -3,7 +3,7 @@ import { getAdminAuth } from "@/lib/firebase-admin";
 
 const MAX_MESSAGES = 40;
 const MAX_MESSAGE_LENGTH = 4000;
-const MAX_CONTEXT_LENGTH = 2000;
+const MAX_CONTEXT_LENGTH = 4000;
 
 function sanitizeString(v: unknown, maxLen = 200): string | undefined {
   if (typeof v !== "string") return undefined;
@@ -15,22 +15,31 @@ function sanitizeContext(raw: unknown): Record<string, unknown> {
   const ctx = raw as Record<string, unknown>;
   const result: Record<string, unknown> = {};
 
+  if (typeof ctx.userName === "string") result.userName = sanitizeString(ctx.userName, 50);
+  if (typeof ctx.monthsIntoPlan === "number") result.monthsIntoPlan = ctx.monthsIntoPlan;
+  if (typeof ctx.strategyMethod === "string") result.strategyMethod = sanitizeString(ctx.strategyMethod, 30);
   if (typeof ctx.monthlyBudget === "string") result.monthlyBudget = sanitizeString(ctx.monthlyBudget);
   if (typeof ctx.totalDebt === "string") result.totalDebt = sanitizeString(ctx.totalDebt);
   if (typeof ctx.projectedPayoff === "string") result.projectedPayoff = sanitizeString(ctx.projectedPayoff);
   if (typeof ctx.monthsRemaining === "number") result.monthsRemaining = ctx.monthsRemaining;
   if (typeof ctx.totalInterest === "string") result.totalInterest = sanitizeString(ctx.totalInterest);
+  if (typeof ctx.interestIfMinOnly === "string") result.interestIfMinOnly = sanitizeString(ctx.interestIfMinOnly);
+  if (typeof ctx.savingsVsMinOnly === "string") result.savingsVsMinOnly = sanitizeString(ctx.savingsVsMinOnly);
 
   if (Array.isArray(ctx.debts)) {
     result.debts = ctx.debts.slice(0, 20).map((d: unknown) => {
       if (!d || typeof d !== "object" || Array.isArray(d)) return {};
       const debt = d as Record<string, unknown>;
-      return {
+      const obj: Record<string, unknown> = {
         name: sanitizeString(debt.name),
         balance: sanitizeString(debt.balance),
         apr: sanitizeString(debt.apr),
         minPayment: sanitizeString(debt.minPayment),
       };
+      if (typeof debt.pctPaidDown === "string") obj.pctPaidDown = sanitizeString(debt.pctPaidDown, 10);
+      if (typeof debt.projectedPayoffDate === "string") obj.projectedPayoffDate = sanitizeString(debt.projectedPayoffDate, 20);
+      if (typeof debt.totalInterestToGo === "string") obj.totalInterestToGo = sanitizeString(debt.totalInterestToGo);
+      return obj;
     });
   }
 
@@ -110,12 +119,21 @@ export async function POST(request: Request) {
 
   const client = new Anthropic({ apiKey });
 
-  const systemPrompt = `You are a helpful, encouraging financial advisor inside a debt snowball tracker app.
-The user's current debt situation (verified app data):
+  const userName = typeof safeContext.userName === "string" ? safeContext.userName : "there";
+
+  const systemPrompt = `You are a personal financial advisor embedded in the Exhale Debt app.
+You are speaking with ${userName}.
+
+Their verified debt data from the app:
 ${contextStr}
 
-Answer what-if questions, explain payoff strategies, and provide motivation.
-Be concise and actionable. Format dollar amounts clearly. Keep responses under 200 words unless a detailed breakdown is requested.`;
+Instructions:
+- Address ${userName} by name naturally (not in every message — only when it feels right).
+- Reference their specific debts by name when relevant (e.g., "your Chase card").
+- Use their actual numbers — balances, payoff dates, APRs, interest costs — when answering.
+- Be concise and actionable. Keep responses under 250 words unless a detailed breakdown is requested.
+- Be encouraging but honest. Highlight wins and realistic next steps.
+- Do not fabricate numbers. All figures must come from the verified context above.`;
 
   try {
     const response = await client.messages.create({

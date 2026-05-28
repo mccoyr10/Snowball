@@ -3,10 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getIdToken } from "firebase/auth";
-import { auth } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
-import { getUserDoc } from "@/lib/firestore";
 import AuthFormCard from "@/components/AuthFormCard";
 import { FirebaseError } from "firebase/app";
 
@@ -21,18 +18,6 @@ function friendlyError(code: string): string {
     default:
       return "Something went wrong. Please try again.";
   }
-}
-
-async function redirectToCheckout(email: string): Promise<void> {
-  const idToken = await getIdToken(auth.currentUser!);
-  const res = await fetch("/api/stripe/create-checkout", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ email }),
-  });
-  if (!res.ok) throw new Error("Could not start checkout.");
-  const { url } = await res.json();
-  window.location.href = url;
 }
 
 export default function RegisterPage() {
@@ -68,7 +53,7 @@ export default function RegisterPage() {
     setSubmitting(true);
     try {
       await signUp(email, password, name);
-      await redirectToCheckout(email);
+      router.replace("/dashboard");
     } catch (err) {
       if (err instanceof FirebaseError) setError(friendlyError(err.code));
       else setError("Something went wrong. Please try again.");
@@ -81,13 +66,7 @@ export default function RegisterPage() {
     setSubmitting(true);
     try {
       await signInWithGoogle();
-      const currentUser = auth.currentUser!;
-      const userDoc = await getUserDoc(currentUser.uid);
-      if (userDoc?.subscriptionStatus === "incomplete") {
-        await redirectToCheckout(currentUser.email ?? "");
-      } else {
-        router.replace("/dashboard");
-      }
+      router.replace("/dashboard");
     } catch (err) {
       if (err instanceof FirebaseError) setError(friendlyError(err.code));
       else setError("Something went wrong. Please try again.");
@@ -161,7 +140,7 @@ export default function RegisterPage() {
           disabled={submitting}
           className="w-full rounded-full bg-blue-700 py-2.5 text-sm font-semibold text-white hover:bg-blue-800 transition-colors disabled:opacity-50"
         >
-          {submitting ? "Setting up your account…" : "Create account"}
+          {submitting ? "Creating your account…" : "Create account"}
         </button>
       </form>
 

@@ -57,15 +57,28 @@ export async function POST(request: Request) {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        const customerId = session.customer as string;
         const metaUid = session.metadata?.firebaseUid;
-        const ref = await resolveUserRef(customerId, metaUid);
-        if (ref) {
-          await ref.update({
-            subscriptionStatus: "trialing" as SubscriptionStatus,
-            trialStartedAt: new Date(),
-            stripeCustomerId: customerId,
-          });
+
+        if (session.mode === "payment" && metaUid) {
+          // One-time advisor purchase — grant lifetime access
+          const userSnap = await db.doc(`users/${metaUid}`).get();
+          if (userSnap.exists) {
+            await userSnap.ref.update({
+              lifetimeAccess: true,
+              accessGrantedVia: "stripe_one_time",
+            });
+          }
+        } else if (session.mode === "subscription") {
+          // Legacy subscription checkout
+          const customerId = session.customer as string;
+          const ref = await resolveUserRef(customerId, metaUid);
+          if (ref) {
+            await ref.update({
+              subscriptionStatus: "trialing" as SubscriptionStatus,
+              trialStartedAt: new Date(),
+              stripeCustomerId: customerId,
+            });
+          }
         }
         break;
       }
