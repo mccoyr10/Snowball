@@ -15,6 +15,9 @@ service cloud.firestore {
     // Users can only read and write their own user document
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+      match /{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
 
     // Household access is restricted to members listed in memberIds
@@ -68,6 +71,13 @@ service cloud.firestore {
     // All writes go through the server via Admin SDK (bypasses these rules).
     match /discountCodes/{code} {
       allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // Share tokens — publicly readable (token is the only key, no PII)
+    // Writes go through Admin SDK only.
+    match /shareTokens/{token} {
+      allow read: if true;
       allow write: if false;
     }
 

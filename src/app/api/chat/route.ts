@@ -122,7 +122,7 @@ export async function POST(request: Request) {
   const userName = typeof safeContext.userName === "string" ? safeContext.userName : "there";
 
   const systemPrompt = `You are a personal financial advisor embedded in the Exhale Debt app.
-You are speaking with ${userName}.
+You are speaking with ${userName}. The message history includes previous sessions — you have memory of past conversations with this user. Reference earlier topics naturally when relevant.
 
 Their verified debt data from the app:
 ${contextStr}

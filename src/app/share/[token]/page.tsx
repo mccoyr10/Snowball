@@ -16,10 +16,10 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
   try {
     const db = getAdminDb();
     const tokenSnap = await db.doc(`shareTokens/${token}`).get();
-    if (tokenSnap.exists()) {
+    if (tokenSnap.exists) {
       const { uid } = tokenSnap.data() as { uid: string };
       const cardSnap = await db.doc(`users/${uid}/shareCard/current`).get();
-      if (cardSnap.exists()) {
+      if (cardSnap.exists) {
         const data = cardSnap.data() as ShareData;
         return {
           title: `${data.firstName}'s Debt-Free Journey — Exhale Debt`,
@@ -46,10 +46,10 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
   try {
     const db = getAdminDb();
     const tokenSnap = await db.doc(`shareTokens/${token}`).get();
-    if (tokenSnap.exists()) {
+    if (tokenSnap.exists) {
       const { uid } = tokenSnap.data() as { uid: string };
       const cardSnap = await db.doc(`users/${uid}/shareCard/current`).get();
-      if (cardSnap.exists()) {
+      if (cardSnap.exists) {
         data = cardSnap.data() as ShareData;
       }
     }
