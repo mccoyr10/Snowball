@@ -88,7 +88,8 @@ If no debts qualify, return { "opportunities": [], "ratesAsOfNote": "..." }`;
       messages: [{ role: "user", content: prompt }],
     });
     const text = response.content[0]?.type === "text" ? response.content[0].text : "";
-    const parsed = JSON.parse(text.trim()) as { opportunities: RefinancingOpportunity[]; ratesAsOfNote: string };
+    const cleaned = text.trim().replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
+    const parsed = JSON.parse(cleaned) as { opportunities: RefinancingOpportunity[]; ratesAsOfNote: string };
     if (!Array.isArray(parsed.opportunities)) throw new Error("Invalid structure");
     return Response.json(parsed);
   } catch {

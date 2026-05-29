@@ -41,12 +41,16 @@ export default function ChatPanel({ debts, settings, summary }: ChatPanelProps) 
 
   // Load history on mount
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setHistoryLoaded(true); // unblock auto-analysis when no user is present
+      return;
+    }
+    const capturedDataKey = dataKey; // capture synchronously before async call
     loadAdvisorHistory(user.uid).then((history) => {
       if (history.length > 0) {
         setMessages(history);
-        // Mark initialized so auto-analysis won't fire
-        initializedRef.current = dataKey;
+        // Mark initialized with the key at load time so auto-analysis won't fire
+        initializedRef.current = capturedDataKey;
       }
       setHistoryLoaded(true);
     });

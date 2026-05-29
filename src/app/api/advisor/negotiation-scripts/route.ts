@@ -69,7 +69,8 @@ Make scripts natural, confident, and specific to each debt name and APR. targetA
       messages: [{ role: "user", content: prompt }],
     });
     const text = response.content[0]?.type === "text" ? response.content[0].text : "";
-    const parsed = JSON.parse(text.trim()) as { scripts: NegotiationScript[] };
+    const cleaned = text.trim().replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
+    const parsed = JSON.parse(cleaned) as { scripts: NegotiationScript[] };
     if (!Array.isArray(parsed.scripts)) throw new Error("Invalid structure");
     return Response.json({ scripts: parsed.scripts });
   } catch {

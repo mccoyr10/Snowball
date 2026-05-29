@@ -53,7 +53,8 @@ estimatedSavings is in dollars per month. Make tasks realistic and specific.`;
       messages: [{ role: "user", content: prompt }],
     });
     const text = response.content[0]?.type === "text" ? response.content[0].text : "";
-    const parsed = JSON.parse(text.trim()) as { tasks: ChallengeTask[] };
+    const cleaned = text.trim().replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
+    const parsed = JSON.parse(cleaned) as { tasks: ChallengeTask[] };
     if (!Array.isArray(parsed.tasks)) throw new Error("Invalid structure");
     tasks = parsed.tasks;
   } catch {
