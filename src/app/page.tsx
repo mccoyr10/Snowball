@@ -36,24 +36,17 @@ const testimonials = [
   { quote: "My wife and I have student loans, two cars, and a baby. I thought we were trapped. Exhale Debt showed me we're not. 2029 is the year. We're going to make it.", author: "Tyler R.", detail: "Tracking $230K in non-mortgage debt" },
 ];
 
-const MONO: React.CSSProperties = { fontFamily: '"Courier New", Courier, monospace' };
-
 export default function Home() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
   const [auditInputs, setAuditInputs] = useState({ debt: "", apr: "", income: "" });
+  const [auditEmail, setAuditEmail] = useState("");
   const [auditResults, setAuditResults] = useState<{
     dailyCost: number;
-    bankHours: number;
-    monthlyInterest: number;
     annualInterest: number;
-    monthlyPayment: number;
-    principalPayment: number;
+    monthlyInterest: number;
     interestRatio: number;
-    liquidityScore: number;
-    liquidityStatus: string;
-    incomeRaw: number;
   } | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
 
@@ -71,28 +64,17 @@ export default function Home() {
     const annualInterest = debt * (apr / 100);
     const monthlyInterest = annualInterest / 12;
     const monthlyRate = apr / 100 / 12;
-    const n = 120; // 10-year amortization baseline
+    const n = 120;
     const monthlyPayment = monthlyRate > 0
       ? debt * (monthlyRate * Math.pow(1 + monthlyRate, n)) / (Math.pow(1 + monthlyRate, n) - 1)
       : debt / n;
-    const principalPayment = Math.max(monthlyPayment - monthlyInterest, 0);
-    const interestRatio = Math.min((monthlyInterest / monthlyPayment) * 100, 99);
-
-    const dti = debt / income;
-    const liquidityScore = dti > 18 ? 5 : dti > 12 ? 15 : dti > 6 ? 32 : 60;
-    const liquidityStatus = liquidityScore < 20 ? "CRITICAL SYSTEM RISK" : liquidityScore < 40 ? "ELEVATED RISK" : "ADEQUATE";
+    const interestRatio = Math.min(Math.round((monthlyInterest / monthlyPayment) * 100), 99);
 
     setAuditResults({
       dailyCost: annualInterest / 365,
-      bankHours: monthlyInterest / (income / 160),
-      monthlyInterest,
       annualInterest,
-      monthlyPayment,
-      principalPayment,
+      monthlyInterest,
       interestRatio,
-      liquidityScore,
-      liquidityStatus,
-      incomeRaw: income,
     });
     setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   }
@@ -209,313 +191,115 @@ export default function Home() {
           </div>
         </form>
 
-        {/* ══════════════════════════════════════════════════════
-            EXECUTIVE AUDIT SUMMARY
-        ══════════════════════════════════════════════════════ */}
+        {/* ── AUDIT RESULTS ── */}
         {auditResults && (
           <div ref={resultsRef} style={{ marginTop: "2.5rem" }}>
-
-            {/* Outer document shell */}
             <div style={{
-              background: "#fafaf7",
-              border: "1.5px solid #94a3b8",
-              borderRadius: 4,
+              background: "var(--surface)",
+              border: "1px solid var(--line-strong)",
+              borderRadius: "var(--r-lg)",
               overflow: "hidden",
-              boxShadow: "0 8px 32px rgba(15,23,42,0.14), 0 2px 6px rgba(15,23,42,0.06)",
+              boxShadow: "var(--shadow-md)",
             }}>
+              {/* Top accent */}
+              <div style={{ height: 4, background: "linear-gradient(90deg, var(--info), var(--sage))" }} />
 
-              {/* ── DOCUMENT HEADER ── */}
-              <div style={{ background: "#0f172a", padding: "2rem", position: "relative" }}>
-                {/* Gold top rule */}
-                <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "var(--gold)" }} />
-
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" as const }}>
-                  <div>
-                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "3px", textTransform: "uppercase" as const, color: "#b45309", marginBottom: 10 }}>
-                      Executive Debt Strategy Audit
-                    </div>
-                    <div style={{ fontFamily: "var(--font-display)", fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 400, color: "#ffffff", lineHeight: 1.15, marginBottom: 14, letterSpacing: "-0.5px" }}>
-                      Debt Liability<br />Assessment Report
-                    </div>
-                    <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.9 }}>
-                      Prepared by:{" "}
-                      <span style={{ color: "#e2e8f0" }}>Ricky Rishod McCoy, CPA, CISA</span><br />
-                      Date:{" "}
-                      <span style={{ color: "#cbd5e1" }}>
-                        {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-                      </span>
-                      <br />
-                      Ref:{" "}
-                      <span style={{ ...MONO, color: "#94a3b8", fontSize: 11 }}>
-                        AUDIT-{new Date().getFullYear()}-{String(new Date().getMonth() + 1).padStart(2, "0")}-CONF
-                      </span>
-                    </div>
-                  </div>
-
-                  <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "flex-end", gap: 14, flexShrink: 0 }}>
-                    {/* CONFIDENTIAL stamp */}
-                    <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "2.5px", textTransform: "uppercase" as const, border: "1.5px solid #ef4444", color: "#ef4444", borderRadius: 2, padding: "3px 10px" }}>
-                      Confidential
-                    </div>
-                    {/* CPA/CISA seal */}
-                    <div style={{ width: 64, height: 64, borderRadius: "50%", border: "2px solid #b45309", background: "rgba(180,83,9,0.08)", display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 1 }}>
-                      <div style={{ fontSize: 11, fontWeight: 800, color: "#b45309", letterSpacing: "0.5px", lineHeight: 1.2, textAlign: "center" as const }}>
-                        CPA<br />CISA
-                      </div>
-                      <div style={{ fontSize: 7, color: "#b45309", opacity: 0.75, letterSpacing: "1px" }}>CERT.</div>
-                    </div>
-                  </div>
+              {/* Header */}
+              <div style={{ padding: "1.75rem 2rem 1.25rem" }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>
+                  Here&apos;s what your debt is costing you
+                </div>
+                <div style={{ fontSize: 13, color: "var(--ink-muted)", fontWeight: 300 }}>
+                  Based on ${parseFloat(auditInputs.debt.replace(/,/g, "")).toLocaleString()} at {auditInputs.apr}% APR
                 </div>
               </div>
 
-              {/* Findings banner */}
-              <div style={{ background: "#1e293b", padding: "0.55rem 2rem", display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#ef4444", flexShrink: 0 }} />
-                <div style={{ fontSize: 10, color: "#64748b", letterSpacing: "1.5px", textTransform: "uppercase" as const }}>
-                  Findings Summary —{" "}
-                  <span style={{ color: "#f1f5f9" }}>4 Risk Areas Identified</span>{" "}
-                  — Preliminary Review
-                </div>
+              {/* 3 key numbers */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", borderTop: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }}>
+                {[
+                  {
+                    value: `$${auditResults.dailyCost.toFixed(2)}`,
+                    label: "per day in interest",
+                    sub: "While you sleep, eat, work — the meter runs.",
+                    color: "var(--danger)",
+                  },
+                  {
+                    value: `$${Math.round(auditResults.annualInterest).toLocaleString()}`,
+                    label: "per year to lenders",
+                    sub: "Money that could be building your future.",
+                    color: "var(--warn)",
+                  },
+                  {
+                    value: `${auditResults.interestRatio}%`,
+                    label: "of each payment is interest",
+                    sub: auditResults.interestRatio > 50
+                      ? "More than half goes to the lender, not your balance."
+                      : "The rest actually reduces what you owe.",
+                    color: auditResults.interestRatio > 50 ? "var(--danger)" : "var(--ink)",
+                  },
+                ].map((stat, i) => (
+                  <div key={i} style={{ padding: "1.5rem 1.75rem", borderRight: i < 2 ? "1px solid var(--line)" : "none" }}>
+                    <div style={{ fontSize: "clamp(26px, 4vw, 34px)", fontWeight: 800, color: stat.color, lineHeight: 1, marginBottom: 4 }}>
+                      {stat.value}
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: "var(--ink)", marginBottom: 4 }}>{stat.label}</div>
+                    <div style={{ fontSize: 12, color: "var(--ink-muted)", lineHeight: 1.5 }}>{stat.sub}</div>
+                  </div>
+                ))}
               </div>
 
-              {/* ── FINDING I: INTEREST LEAKAGE ── */}
-              <div style={{ padding: "1.75rem 2rem", borderBottom: "1px solid #e2e8f0" }}>
-                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "3px", textTransform: "uppercase" as const, color: "#94a3b8", marginBottom: 4 }}>Finding I</div>
-                <div style={{ fontFamily: "var(--font-display)", fontSize: 17, color: "#0f172a", marginBottom: 16 }}>Interest Leakage</div>
-
-                <div style={{ display: "flex", alignItems: "flex-end", gap: 20, flexWrap: "wrap" as const, marginBottom: 20 }}>
-                  <div>
-                    <div style={{ ...MONO, fontSize: "clamp(32px, 5vw, 46px)", fontWeight: 700, color: "#dc2626", lineHeight: 1, letterSpacing: "-2px" }}>
-                      ${auditResults.dailyCost.toFixed(2)}
-                      <span style={{ fontSize: "0.38em", fontWeight: 400, color: "#94a3b8", letterSpacing: 0 }}> / DAY</span>
-                    </div>
-                  </div>
-                  <div style={{ paddingBottom: 4 }}>
-                    <div style={{ fontSize: 12, color: "#64748b", marginBottom: 3 }}>Annual hemorrhage</div>
-                    <div style={{ ...MONO, fontSize: 18, fontWeight: 700, color: "#0f172a" }}>
-                      ${auditResults.annualInterest.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                      <span style={{ fontSize: "0.6em", fontWeight: 400, color: "#94a3b8" }}> / yr</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Daily erosion bar */}
-                <div style={{ fontSize: 10, color: "#94a3b8", letterSpacing: "1px", textTransform: "uppercase" as const, marginBottom: 6 }}>Daily Income Erosion Rate</div>
-                <div style={{ background: "#f1f5f9", borderRadius: 2, height: 10, overflow: "hidden", marginBottom: 4 }}>
-                  <div style={{
-                    width: `${Math.min((auditResults.dailyCost / (auditResults.incomeRaw / 30)) * 100, 100)}%`,
-                    height: "100%", background: "linear-gradient(90deg, #dc2626, #f87171)", borderRadius: 2,
-                  }} />
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#94a3b8" }}>
-                  <span>$0</span>
-                  <span>Daily income: ${(auditResults.incomeRaw / 30).toFixed(0)}</span>
-                </div>
-              </div>
-
-              {/* ── FINDING II: PRINCIPAL EFFICIENCY RATIO ── */}
-              <div style={{ padding: "1.75rem 2rem", borderBottom: "1px solid #e2e8f0", background: "#fdf9f3" }}>
-                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "3px", textTransform: "uppercase" as const, color: "#94a3b8", marginBottom: 4 }}>Finding II</div>
-                <div style={{ fontFamily: "var(--font-display)", fontSize: 17, color: "#0f172a", marginBottom: 6 }}>Principal Efficiency Ratio</div>
-                <div style={{ fontSize: 12, color: "#64748b", marginBottom: 14 }}>
-                  Of each estimated monthly payment, capital allocation breaks down as follows:
-                </div>
-
-                {auditResults.interestRatio > 50 && (
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 4, padding: "4px 10px", marginBottom: 16 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#dc2626", flexShrink: 0 }} />
-                    <span style={{ fontSize: 10, fontWeight: 700, color: "#dc2626", letterSpacing: "1px" }}>
-                      TREADING WATER — INTEREST EXCEEDS PRINCIPAL REDUCTION
-                    </span>
-                  </div>
-                )}
-
-                {/* Interest bar */}
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                  <div style={{ width: 72, fontSize: 11, color: "#64748b", textAlign: "right" as const, flexShrink: 0 }}>Interest</div>
-                  <div style={{ flex: 1, background: "#f1f5f9", borderRadius: 2, height: 24, overflow: "hidden" }}>
-                    <div style={{ width: `${auditResults.interestRatio}%`, height: "100%", background: "linear-gradient(90deg, #dc2626, #f87171)", display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 8 }}>
-                      <span style={{ ...MONO, fontSize: 10, color: "#fff", fontWeight: 600 }}>{auditResults.interestRatio.toFixed(0)}%</span>
-                    </div>
-                  </div>
-                  <div style={{ ...MONO, width: 76, fontSize: 12, color: "#dc2626", fontWeight: 600, flexShrink: 0 }}>
-                    ${auditResults.monthlyInterest.toFixed(0)}/mo
-                  </div>
-                </div>
-
-                {/* Principal bar */}
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 72, fontSize: 11, color: "#64748b", textAlign: "right" as const, flexShrink: 0 }}>Principal</div>
-                  <div style={{ flex: 1, background: "#f1f5f9", borderRadius: 2, height: 24, overflow: "hidden" }}>
-                    <div style={{ width: `${100 - auditResults.interestRatio}%`, height: "100%", background: "linear-gradient(90deg, #10825a, #34d399)", display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 8 }}>
-                      <span style={{ ...MONO, fontSize: 10, color: "#fff", fontWeight: 600 }}>{(100 - auditResults.interestRatio).toFixed(0)}%</span>
-                    </div>
-                  </div>
-                  <div style={{ ...MONO, width: 76, fontSize: 12, color: "#10825a", fontWeight: 600, flexShrink: 0 }}>
-                    ${auditResults.principalPayment.toFixed(0)}/mo
-                  </div>
-                </div>
-
-                <div style={{ marginTop: 12, fontSize: 11, color: "#94a3b8", fontStyle: "italic" as const }}>
-                  * Estimated via standard 10-year amortization at stated APR.
-                </div>
-              </div>
-
-              {/* ── FINDING III: WORK-FOR-THE-BANK HOURS ── */}
-              <div style={{ padding: "1.75rem 2rem", borderBottom: "1px solid #e2e8f0" }}>
-                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "3px", textTransform: "uppercase" as const, color: "#94a3b8", marginBottom: 4 }}>Finding III</div>
-                <div style={{ fontFamily: "var(--font-display)", fontSize: 17, color: "#0f172a", marginBottom: 8 }}>Work-for-the-Bank™ Hours</div>
-                <div style={{ fontSize: 13, color: "#475569", marginBottom: 20 }}>
-                  <span style={{ ...MONO, fontSize: 22, fontWeight: 700, color: "var(--warn)" }}>
-                    {auditResults.bankHours.toFixed(1)}
-                  </span>
-                  {" "}hours per month earned exclusively for your lenders.
-                </div>
-
-                <div style={{ fontSize: 10, color: "#94a3b8", letterSpacing: "1px", textTransform: "uppercase" as const, marginBottom: 10 }}>
-                  Weekly Visualization — Hours Stolen by Lenders
-                </div>
-
-                <div style={{ overflowX: "auto" as const }}>
-                  <div style={{ minWidth: 320 }}>
-                    {/* Day headers */}
-                    <div style={{ display: "grid", gridTemplateColumns: "44px repeat(5, 1fr)", gap: 3, marginBottom: 3 }}>
-                      <div />
-                      {(["MON", "TUE", "WED", "THU", "FRI"] as const).map(d => (
-                        <div key={d} style={{ fontSize: 9, fontWeight: 700, letterSpacing: "1px", color: d === "MON" ? "#ef4444" : "#94a3b8", textAlign: "center" as const, paddingBottom: 3 }}>
-                          {d}
-                        </div>
-                      ))}
-                    </div>
-                    {/* Hour rows — Mon 9–12 is highlighted */}
-                    {["9 AM", "10 AM", "11 AM", "12 PM", "1 PM", "2 PM", "3 PM", "4 PM"].map((time, ri) => (
-                      <div key={time} style={{ display: "grid", gridTemplateColumns: "44px repeat(5, 1fr)", gap: 3, marginBottom: 3 }}>
-                        <div style={{ fontSize: 9, color: "#94a3b8", display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 6 }}>{time}</div>
-                        {[0, 1, 2, 3, 4].map(di => {
-                          const stolen = di === 0 && ri < 3;
-                          return (
-                            <div key={di} style={{ height: 22, borderRadius: 2, background: stolen ? "#ef4444" : "#f1f5f9", border: stolen ? "none" : "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              {stolen && ri === 1 && (
-                                <span style={{ fontSize: 7, color: "#fff", fontWeight: 800, letterSpacing: "0.5px" }}>LENDER</span>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div style={{ marginTop: 10, fontSize: 11, color: "#94a3b8", fontStyle: "italic" as const }}>
-                  Monday 9:00 AM – 12:00 PM: Time allocated to servicing lender obligations. Not your goals. Not your savings. Your lenders&apos; bottom line.
-                </div>
-              </div>
-
-              {/* ── FINDING IV: SYSTEMIC LIQUIDITY RISK ── */}
-              <div style={{ padding: "1.75rem 2rem", borderBottom: "1px solid #e2e8f0", background: auditResults.liquidityScore < 20 ? "#fff9f9" : "#fafaf7" }}>
-                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "3px", textTransform: "uppercase" as const, color: "#94a3b8", marginBottom: 4 }}>Finding IV</div>
-                <div style={{ fontFamily: "var(--font-display)", fontSize: 17, color: "#0f172a", marginBottom: 6 }}>Systemic Liquidity Risk</div>
-                <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
-                  Liquidity buffer assessment based on debt-service obligations relative to income capacity. Research indicator: <strong>32% of households</strong> at this debt-service ratio maintain zero liquid savings.
-                </div>
-
-                {/* Status badge */}
-                <div style={{
-                  display: "inline-flex", alignItems: "center", gap: 8,
-                  background: auditResults.liquidityScore < 20 ? "#fef2f2" : auditResults.liquidityScore < 40 ? "#fffbeb" : "#f0fdf4",
-                  border: `1px solid ${auditResults.liquidityScore < 20 ? "#fca5a5" : auditResults.liquidityScore < 40 ? "#fcd34d" : "#86efac"}`,
-                  borderRadius: 4, padding: "6px 14px", marginBottom: 16,
-                }}>
-                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: auditResults.liquidityScore < 20 ? "#dc2626" : auditResults.liquidityScore < 40 ? "#d97706" : "#16a34a", flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.5px", color: auditResults.liquidityScore < 20 ? "#dc2626" : auditResults.liquidityScore < 40 ? "#d97706" : "#16a34a" }}>
-                    {auditResults.liquidityStatus}
-                  </span>
-                </div>
-
-                {/* Gauge */}
-                <div style={{ fontSize: 10, color: "#94a3b8", letterSpacing: "1px", textTransform: "uppercase" as const, marginBottom: 6 }}>Liquidity Buffer Gauge</div>
-                <div style={{ background: "#f1f5f9", borderRadius: 2, height: 14, overflow: "hidden", marginBottom: 6 }}>
-                  <div style={{
-                    width: `${auditResults.liquidityScore}%`, height: "100%", borderRadius: 2,
-                    background: auditResults.liquidityScore < 20
-                      ? "linear-gradient(90deg, #dc2626, #f87171)"
-                      : auditResults.liquidityScore < 40
-                      ? "linear-gradient(90deg, #d97706, #fbbf24)"
-                      : "linear-gradient(90deg, #10825a, #34d399)",
-                  }} />
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#94a3b8" }}>
-                  <span>DEPLETED</span><span>3-MONTH BUFFER</span><span>ADEQUATE</span>
-                </div>
-              </div>
-
-              {/* ── AUDITOR'S FORMAL ASSESSMENT ── */}
-              <div style={{ padding: "2rem", background: "#f5f4f0" }}>
-
-                {/* Ruled citation block */}
-                <div style={{ borderLeft: "3px solid #0f172a", paddingLeft: "1.25rem", marginBottom: "1.75rem" }}>
-                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "3px", textTransform: "uppercase" as const, color: "#94a3b8", marginBottom: 8 }}>
-                    Auditor&apos;s Formal Assessment
-                  </div>
-                  <p style={{ fontFamily: "var(--font-display)", fontSize: 15, color: "#0f172a", lineHeight: 1.8, margin: 0 }}>
-                    Based on the foregoing analysis, this debt structure presents a systemic financial risk requiring immediate strategic intervention. At the current trajectory, interest obligations will absorb{" "}
-                    <strong>${auditResults.annualInterest.toLocaleString("en-US", { maximumFractionDigits: 0 })}</strong> annually — capital that cannot be directed toward wealth accumulation, emergency reserves, or retirement stability.
-                  </p>
-                </div>
-
-                <p style={{ fontFamily: "var(--font-display)", fontSize: 14, color: "#475569", lineHeight: 1.8, fontStyle: "italic" as const, marginBottom: "1.75rem" }}>
-                  The recommended course of action is immediate enrollment in the{" "}
-                  <strong style={{ color: "#0f172a", fontStyle: "normal" as const }}>Exhale Debt Strategic Roadmap System</strong>{" "}
-                  — a structured debt elimination protocol designed to restore cash flow, sequence payoffs with maximum efficiency, and establish a definitive exit date. The system transforms this liability profile into a managed, time-bounded commitment.
+              {/* Encouragement + CTA */}
+              <div style={{ padding: "1.75rem 2rem" }}>
+                <p style={{ fontSize: 15, color: "var(--ink-muted)", lineHeight: 1.7, marginBottom: "1.5rem", fontWeight: 300 }}>
+                  The good news? <strong style={{ color: "var(--ink)", fontWeight: 600 }}>This is completely fixable.</strong> The debt snowball method gives you a specific payoff date for every debt — not a rough estimate, an actual month and year you can work toward. Thousands of people use it to get out faster than they thought possible.{" "}
+                  <strong style={{ color: "var(--sage)", fontWeight: 500 }}>The tracker is free.</strong>
                 </p>
 
-                {/* Signature block */}
-                <div style={{ borderTop: "0.5px solid #cbd5e1", paddingTop: "1rem", marginBottom: "1.75rem" }}>
-                  <div style={{ fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 400, color: "#0f172a", fontStyle: "italic" as const, letterSpacing: "-0.5px", marginBottom: 4 }}>
-                    Ricky Rishod McCoy
+                {/* Email capture */}
+                <div style={{
+                  background: "var(--info-soft)",
+                  border: "1px solid #bfdbfe",
+                  borderRadius: "var(--r-lg)",
+                  padding: "1.5rem",
+                }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>
+                    Start tracking your debt — free
                   </div>
-                  <div style={{ fontSize: 11, color: "#64748b", letterSpacing: "0.25px" }}>
-                    Ricky Rishod McCoy, CPA, CISA · Exhale Debt Advisory
+                  <div style={{ fontSize: 13, color: "var(--ink-muted)", marginBottom: "1rem" }}>
+                    Enter your email to create your free account and build your payoff plan.
                   </div>
-                  <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>
-                    Certified Public Accountant · Certified Information Systems Auditor
+                  <form
+                    onSubmit={e => {
+                      e.preventDefault();
+                      const enc = encodeURIComponent(auditEmail.trim());
+                      window.location.href = enc ? `/register?email=${enc}` : "/register";
+                    }}
+                    style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}
+                  >
+                    <input
+                      type="email"
+                      required
+                      placeholder="your@email.com"
+                      value={auditEmail}
+                      onChange={e => setAuditEmail(e.target.value)}
+                      className="form-input"
+                      style={{ flex: "1 1 220px", minWidth: 0 }}
+                    />
+                    <button type="submit" className="btn primary" style={{ borderRadius: "var(--r-pill)", whiteSpace: "nowrap" as const }}>
+                      Get started free →
+                    </button>
+                  </form>
+                  <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 10 }}>
+                    Free forever · No credit card · Cancel anytime
                   </div>
                 </div>
-
-                {/* Engagement fee CTA */}
-                <div style={{ background: "#0f172a", borderRadius: 4, padding: "1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" as const, gap: 16 }}>
-                  <div>
-                    <div style={{ fontSize: 9, color: "#64748b", letterSpacing: "2px", textTransform: "uppercase" as const, marginBottom: 6 }}>
-                      Strategic Engagement
-                    </div>
-                    <div style={{ fontFamily: "var(--font-display)", fontSize: 18, color: "#ffffff", marginBottom: 4 }}>
-                      Unlock Your Full Debt Exit Roadmap
-                    </div>
-                    <div style={{ fontSize: 12, color: "#475569" }}>
-                      One-time engagement fee · Lifetime system access · No recurring charges
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
-                    <a href="/register" style={{
-                      display: "inline-flex", alignItems: "center", gap: 8,
-                      background: "var(--gold)", color: "#ffffff",
-                      fontSize: 14, fontWeight: 600,
-                      padding: "13px 24px", borderRadius: 4, textDecoration: "none",
-                      letterSpacing: "0.25px", boxShadow: "0 2px 10px rgba(180,83,9,0.35)",
-                    }}>
-                      Engage the Full System — $49 →
-                    </a>
-                    <div style={{ fontSize: 11, color: "#475569" }}>Engagement fee: $49 one-time</div>
-                  </div>
-                </div>
-
               </div>
             </div>
 
             {/* Re-run */}
             <div style={{ textAlign: "center", marginTop: "1rem" }}>
               <button
-                onClick={() => { setAuditResults(null); setAuditInputs({ debt: "", apr: "", income: "" }); }}
+                onClick={() => { setAuditResults(null); setAuditInputs({ debt: "", apr: "", income: "" }); setAuditEmail(""); }}
                 style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "var(--ink-muted)", textDecoration: "underline", fontFamily: "var(--font-ui)" }}
               >
                 Edit inputs / Re-run audit
@@ -633,17 +417,17 @@ export default function Home() {
       {/* ── BOTTOM CTA ── */}
       <section style={{ textAlign: "center", padding: "6rem 2rem" }}>
         <h2 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(34px, 6vw, 52px)", fontWeight: 400, marginBottom: "1rem", lineHeight: 1.08, letterSpacing: "-1px", color: "var(--ink)" }}>
-          Ready to get your<br /><em style={{ color: "var(--sage)" }}>full debt exit plan?</em>
+          Ready to see your<br /><em style={{ color: "var(--sage)" }}>debt-free date?</em>
         </h2>
         <p style={{ fontSize: 16, color: "var(--ink-muted)", fontWeight: 300, maxWidth: 440, margin: "0 auto 2.5rem" }}>
-          Enter your debts. Set your payment. Watch the math work for you — not against you.
+          Enter your debts. Set your payment. See the exact month and year you become debt-free — free forever.
         </p>
         <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" as const, marginBottom: "1rem" }}>
           <a href="/register" className="btn primary" style={{ fontSize: 15, padding: "14px 28px", borderRadius: "var(--r-pill)", justifyContent: "center" }}>
-            Get Full Access — $49 →
+            Start tracking — it&apos;s free →
           </a>
         </div>
-        <div style={{ fontSize: 12, color: "var(--ink-faint)" }}>$49 one-time · Lifetime access · No subscription</div>
+        <div style={{ fontSize: 12, color: "var(--ink-faint)" }}>Free forever · No credit card required</div>
       </section>
 
       {/* ── FOOTER ── */}
