@@ -228,6 +228,9 @@ export default function SnowballApp() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showHousehold, setShowHousehold] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [upsellDismissed, setUpsellDismissed] = useState(() => {
+    try { return sessionStorage.getItem("advisor_upsell_dismissed") === "1"; } catch { return false; }
+  });
 
   const [settings, setSettingsLocal] = useState<UISettings>({
     monthlyBudget: 0,
@@ -492,6 +495,47 @@ export default function SnowballApp() {
           {debts.length > 0 && debts.some(d => !d.startingBalance || d.startingBalance === d.balance) && (
             <MigrationBanner onGoToDebts={() => setActiveTab("debts")} />
           )}
+          {/* Advisor upsell — shown on free tabs when advisor not unlocked */}
+          {!advisorUnlocked && !upsellDismissed && activeTab !== "advisor" && (
+            <div style={{
+              background: "var(--info-soft)",
+              borderBottom: "0.5px solid #bfdbfe",
+              padding: "10px 20px",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              gap: 12, flexWrap: "wrap" as const,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                <span style={{ fontSize: 18, flexShrink: 0 }}>🤖</span>
+                <div>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: "var(--ink)" }}>
+                    Want personalized guidance?
+                  </span>{" "}
+                  <span style={{ fontSize: 13, color: "var(--ink-muted)" }}>
+                    Unlock Exhale Advisor — AI analysis of your actual plan — for $49, one-time.
+                  </span>
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                <button
+                  onClick={() => setActiveTab("advisor")}
+                  className="btn primary"
+                  style={{ fontSize: 12, padding: "7px 14px", borderRadius: "var(--r-pill)" }}
+                >
+                  Learn more →
+                </button>
+                <button
+                  onClick={() => {
+                    setUpsellDismissed(true);
+                    try { sessionStorage.setItem("advisor_upsell_dismissed", "1"); } catch { /* ignore */ }
+                  }}
+                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--ink-faint)", lineHeight: 1, padding: 4 }}
+                  aria-label="Dismiss"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          )}
           <div className="main-inner">
             {tabs[activeTab] ?? tabs["dashboard"]}
           </div>
@@ -523,7 +567,10 @@ export default function SnowballApp() {
       <Toast toasts={toasts} onDismiss={id => setToasts(prev => prev.filter(t => t.id !== id))} />
 
       {showOnboarding && (
-        <OnboardingModal onComplete={() => setShowOnboarding(false)} />
+        <OnboardingModal
+          onComplete={() => setShowOnboarding(false)}
+          onNavigate={setActiveTab}
+        />
       )}
 
       {showHousehold && (

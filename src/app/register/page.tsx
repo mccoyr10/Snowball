@@ -35,6 +35,14 @@ export default function RegisterPage() {
     if (!loading && user) router.replace("/dashboard");
   }, [user, loading, router]);
 
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const emailParam = params.get("email");
+      if (emailParam) setEmail(decodeURIComponent(emailParam));
+    } catch { /* ignore */ }
+  }, []);
+
   if (loading || user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50">

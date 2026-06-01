@@ -20,50 +20,63 @@ const STEPS = [
     title: "Welcome to Exhale Debt",
     body: "Your personal debt payoff planner. We'll help you get out of debt faster using the snowball method — attacking the smallest balance first so you build momentum along the way.",
     tip: null,
+    navigateTo: null,
   },
   {
     icon: "💳",
     title: "Add your debts",
-    body: "Go to the Debts tab and add each debt you want to pay off. You'll need three things for each one:",
+    body: "We've taken you to the Debts tab. Add each debt you want to pay off — you'll need three things for each one:",
     tip: "Balance · Annual interest rate (APR) · Minimum monthly payment",
+    navigateTo: "debts",
   },
   {
     icon: "💰",
     title: "Set your monthly budget",
-    body: "At the top of the Debts tab, enter how much you can put toward debt each month. This should be at least your total minimum payments — anything extra accelerates your payoff.",
+    body: "At the top of this tab, enter how much you can put toward debt each month. This should be at least your total minimum payments — anything extra accelerates your payoff.",
     tip: "Even $50–$100 extra per month can save thousands in interest.",
+    navigateTo: "debts",
   },
   {
     icon: "🎯",
     title: "How snowball works",
     body: "We sort your debts smallest balance first. Every month you pay minimums on all debts, then throw every extra dollar at the target (smallest) debt. Once it's paid off, that payment rolls into the next one.",
     tip: "This builds psychological momentum and keeps you motivated.",
+    navigateTo: null,
   },
   {
     icon: "✏️",
     title: "Track your actual payments",
-    body: "Each month, visit the Actuals tab to log what you actually paid. We'll adjust your future projections automatically so your schedule stays accurate.",
+    body: "We've navigated you to the Actuals tab. Each month, log what you actually paid here and we'll adjust your future projections automatically so your schedule stays accurate.",
     tip: null,
+    navigateTo: "actuals",
   },
   {
     icon: "📱",
     title: "Save to your home screen",
     body: "Add Exhale Debt to your home screen for one-tap access — it works just like a native app.",
     tip: null,
+    navigateTo: null,
     isHomeScreen: true,
   },
 ];
 
 interface OnboardingModalProps {
   onComplete: () => void;
+  onNavigate?: (tab: string) => void;
 }
 
-export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
+export default function OnboardingModal({ onComplete, onNavigate }: OnboardingModalProps) {
   const [step, setStep] = useState(0);
 
   function finish() {
     try { localStorage.setItem(STORAGE_KEY, "1"); } catch { /* ignore */ }
     onComplete();
+  }
+
+  function goToStep(next: number) {
+    const target = STEPS[next];
+    if (target?.navigateTo && onNavigate) onNavigate(target.navigateTo);
+    setStep(next);
   }
 
   const current = STEPS[step];
@@ -170,7 +183,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
             {STEPS.map((_, i) => (
               <button
                 key={i}
-                onClick={() => setStep(i)}
+                onClick={() => goToStep(i)}
                 style={{
                   width: i === step ? 20 : 8,
                   height: 8,
@@ -189,7 +202,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
           <div style={{ display: "flex", gap: 10 }}>
             {step > 0 && (
               <button
-                onClick={() => setStep(s => s - 1)}
+                onClick={() => goToStep(step - 1)}
                 className="btn"
                 style={{ flex: 1, justifyContent: "center" }}
               >
@@ -197,7 +210,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
               </button>
             )}
             <button
-              onClick={() => isLast ? finish() : setStep(s => s + 1)}
+              onClick={() => isLast ? finish() : goToStep(step + 1)}
               className="btn primary"
               style={{ flex: 1, justifyContent: "center" }}
             >
