@@ -271,7 +271,16 @@ export default function Home() {
                   <form
                     onSubmit={e => {
                       e.preventDefault();
-                      const enc = encodeURIComponent(auditEmail.trim());
+                      const trimmed = auditEmail.trim();
+                      // Fire-and-forget — never block the redirect
+                      if (trimmed) {
+                        fetch("/api/subscribe", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ email: trimmed }),
+                        }).catch(() => {});
+                      }
+                      const enc = encodeURIComponent(trimmed);
                       window.location.href = enc ? `/register?email=${enc}` : "/register";
                     }}
                     style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}
