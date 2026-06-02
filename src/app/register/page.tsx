@@ -51,6 +51,14 @@ export default function RegisterPage() {
     );
   }
 
+  function subscribeEmail(subscriberEmail: string, subscriberName?: string) {
+    fetch("/api/subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: subscriberEmail, name: subscriberName }),
+    }).catch(() => {});
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -61,6 +69,7 @@ export default function RegisterPage() {
     setSubmitting(true);
     try {
       await signUp(email, password, name);
+      subscribeEmail(email, name);
       router.replace("/dashboard");
     } catch (err) {
       if (err instanceof FirebaseError) setError(friendlyError(err.code));
@@ -74,6 +83,9 @@ export default function RegisterPage() {
     setSubmitting(true);
     try {
       await signInWithGoogle();
+      const { auth } = await import("@/lib/firebase");
+      const u = auth.currentUser;
+      if (u?.email) subscribeEmail(u.email, u.displayName ?? undefined);
       router.replace("/dashboard");
     } catch (err) {
       if (err instanceof FirebaseError) setError(friendlyError(err.code));
