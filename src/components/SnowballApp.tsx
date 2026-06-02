@@ -206,7 +206,7 @@ function AdvisorPaywall() {
   );
 }
 
-// ── ────────────────────────────────────────────────────────────────────────── ──
+// ── ──────────────────────────────────────────────────────────────────────────── ──
 
 const STRATEGY_DEBOUNCE_MS = 800;
 let toastCounter = 0;
@@ -568,7 +568,7 @@ export default function SnowballApp() {
 
       {showOnboarding && (
         <OnboardingModal
-          onComplete={() => setShowOnboarding(false)}
+          onComplete={() => { setShowOnboarding(false); setActiveTab("debts"); }}
           onNavigate={setActiveTab}
         />
       )}

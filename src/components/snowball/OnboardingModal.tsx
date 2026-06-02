@@ -46,9 +46,9 @@ const STEPS = [
   {
     icon: "✏️",
     title: "Track your actual payments",
-    body: "We've navigated you to the Actuals tab. Each month, log what you actually paid here and we'll adjust your future projections automatically so your schedule stays accurate.",
+    body: "Each month, log what you actually paid in the Actuals tab and we'll adjust your future projections automatically so your schedule stays accurate.",
     tip: null,
-    navigateTo: "actuals",
+    navigateTo: null,
   },
   {
     icon: "📱",
@@ -85,18 +85,18 @@ export default function OnboardingModal({ onComplete, onNavigate }: OnboardingMo
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 50,
-      display: "flex", alignItems: "flex-end", justifyContent: "center",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: "1rem",
     }}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)" }} onClick={finish} />
       <div style={{
         position: "relative", zIndex: 10,
         background: "var(--surface)",
-        borderRadius: "var(--r-xl) var(--r-xl) 0 0",
-        boxShadow: "0 -8px 40px rgba(0,0,0,0.15)",
+        borderRadius: "var(--r-xl)",
+        boxShadow: "0 8px 40px rgba(0,0,0,0.2)",
         width: "100%",
         maxWidth: 480,
         overflow: "hidden",
-        paddingBottom: "max(24px, env(safe-area-inset-bottom))",
       }}>
         {/* Progress bar */}
         <div style={{ height: 3, background: "var(--surface-sunk)" }}>
@@ -107,7 +107,7 @@ export default function OnboardingModal({ onComplete, onNavigate }: OnboardingMo
           }} />
         </div>
 
-        <div style={{ padding: "28px 24px 20px" }}>
+        <div style={{ padding: "28px 24px 24px" }}>
           {/* Step counter + skip */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
             <span style={{ fontSize: 12, color: "var(--ink-faint)", fontWeight: 500 }}>
