@@ -41,7 +41,6 @@ export default function Home() {
   const router = useRouter();
 
   const [auditInputs, setAuditInputs] = useState({ debt: "", apr: "", income: "" });
-  const [auditEmail, setAuditEmail] = useState("");
   const [auditResults, setAuditResults] = useState<{
     dailyCost: number;
     annualInterest: number;
@@ -255,52 +254,15 @@ export default function Home() {
                   <strong style={{ color: "var(--sage)", fontWeight: 500 }}>The tracker is free.</strong>
                 </p>
 
-                {/* Email capture */}
-                <div style={{
-                  background: "var(--info-soft)",
-                  border: "1px solid #bfdbfe",
-                  borderRadius: "var(--r-lg)",
-                  padding: "1.5rem",
-                }}>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>
-                    Start tracking your debt — free
-                  </div>
-                  <div style={{ fontSize: 13, color: "var(--ink-muted)", marginBottom: "1rem" }}>
-                    Enter your email to create your free account and build your payoff plan.
-                  </div>
-                  <form
-                    onSubmit={e => {
-                      e.preventDefault();
-                      const trimmed = auditEmail.trim();
-                      // Fire-and-forget — never block the redirect
-                      if (trimmed) {
-                        fetch("/api/subscribe", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ email: trimmed }),
-                        }).catch(() => {});
-                      }
-                      const enc = encodeURIComponent(trimmed);
-                      window.location.href = enc ? `/register?email=${enc}` : "/register";
-                    }}
-                    style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}
-                  >
-                    <input
-                      type="email"
-                      required
-                      placeholder="your@email.com"
-                      value={auditEmail}
-                      onChange={e => setAuditEmail(e.target.value)}
-                      className="form-input"
-                      style={{ flex: "1 1 220px", minWidth: 0 }}
-                    />
-                    <button type="submit" className="btn primary" style={{ borderRadius: "var(--r-pill)", whiteSpace: "nowrap" as const }}>
-                      Get started free →
-                    </button>
-                  </form>
-                  <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 10 }}>
-                    Free forever · No credit card · Cancel anytime
-                  </div>
+                <a
+                  href="/register"
+                  className="btn primary"
+                  style={{ display: "inline-flex", borderRadius: "var(--r-pill)", fontSize: 15, padding: "13px 28px" }}
+                >
+                  Start tracking — it&apos;s free →
+                </a>
+                <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 10 }}>
+                  Free forever · No credit card · Cancel anytime
                 </div>
               </div>
             </div>
@@ -308,7 +270,7 @@ export default function Home() {
             {/* Re-run */}
             <div style={{ textAlign: "center", marginTop: "1rem" }}>
               <button
-                onClick={() => { setAuditResults(null); setAuditInputs({ debt: "", apr: "", income: "" }); setAuditEmail(""); }}
+                onClick={() => { setAuditResults(null); setAuditInputs({ debt: "", apr: "", income: "" }); }}
                 style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "var(--ink-muted)", textDecoration: "underline", fontFamily: "var(--font-ui)" }}
               >
                 Edit inputs / Re-run audit
