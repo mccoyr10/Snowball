@@ -3,6 +3,13 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import {
+  buildSnowballSchedule,
+  runMinOnlySchedule,
+  generateId,
+  todayYYYYMM,
+} from "@/lib/snowball";
+import type { UIDebt, UISettings, ScheduleEntry } from "@/lib/snowball";
 
 function Logo() {
   return (
@@ -19,7 +26,7 @@ const features = [
   { icon: "❄️", title: "True snowball logic", desc: "Payments roll automatically when a debt is gone. The math works exactly the way the method is supposed to." },
   { icon: "👥", title: "Built for households", desc: "Track debts across both spouses. One dashboard, every debt, full picture — no more separate spreadsheets." },
   { icon: "✏️", title: "Month-by-month editing", desc: "Life isn't linear. Adjust any month's payment and watch every future date recalculate in real time." },
-  { icon: "🤖", title: "AI financial advisor", desc: "Ask what-if questions and get personalized strategies from your built-in advisor." },
+  { icon: "🤖", title: "AI financial advisor", desc: "Ask what-if questions and get personalized strategies from your built-in advisor. Available as a paid add-on." },
 ];
 
 const steps = [
@@ -29,53 +36,185 @@ const steps = [
   { n: "4", title: "Check in. Stay focused.", desc: "Come back monthly. Mark progress. Watch the numbers shrink. Keep breathing." },
 ];
 
-const testimonials = [
-  { quote: "I've tried every spreadsheet out there. This is the first thing that actually showed me a specific date to work toward. November 2028. I've got it on a Post-it on my monitor.", author: "Marcus T.", detail: "$84K paid off · 26 months in" },
-  { quote: "We're a dual-income household with 4 debts and nothing was talking to anything else. Now we have one screen. One plan. We actually talk about money without fighting about it.", author: "Priya & Jordan K.", detail: "Household debt: $210K → $141K" },
-  { quote: "The scenario modeling alone is worth it. I ran the numbers on picking up extra shifts and saw exactly how much faster we'd be done. Picked up the shifts. No regrets.", author: "Darnell W.", detail: "Accelerated payoff by 14 months" },
-  { quote: "My wife and I have student loans, two cars, and a baby. I thought we were trapped. Exhale Debt showed me we're not. 2029 is the year. We're going to make it.", author: "Tyler R.", detail: "Tracking $230K in non-mortgage debt" },
-];
+interface AuditDebt {
+  id: string;
+  name: string;
+  balance: string;
+  apr: string;
+  minPayment: string;
+}
+
+interface AuditResults {
+  grade: "A" | "B" | "C" | "D" | "F";
+  gradeColor: string;
+  gradeReason: string;
+  totalDailyInterest: number;
+  totalMonthlyInterest: number;
+  totalAnnualInterest: number;
+  hoursOfWorkPerDay: number;
+  debtDetails: Array<{
+    id: string;
+    name: string;
+    balance: number;
+    apr: number;
+    minPayment: number;
+    monthlyInterest: number;
+    isRefinanceCandidate: boolean;
+    estimatedAnnualSavings: number;
+  }>;
+  minOnlyMonths: number;
+  minOnlyInterest: number;
+  snowballPlusMonths: number;
+  snowballPlusInterest: number;
+  interestSavings: number;
+  totalBalance: number;
+  totalMinPayments: number;
+  interestToIncomeRatio: number;
+}
+
+function parseNum(s: string): number {
+  return parseFloat(s.replace(/[^0-9.]/g, "")) || 0;
+}
+
+function scheduleInterest(sched: ScheduleEntry[]): number {
+  return sched.reduce((s, e) => s + e.debtSnapshots.reduce((ss, ds) => ss + ds.interestCharge, 0), 0);
+}
+
+function computeGrade(
+  totalMonthlyInterest: number,
+  monthlyIncome: number,
+  totalBalance: number
+): { grade: "A" | "B" | "C" | "D" | "F"; gradeColor: string; gradeReason: string } {
+  const ratio = (totalMonthlyInterest / monthlyIncome) * 100;
+  const dti = totalBalance / (monthlyIncome * 12);
+  if (ratio > 35 || dti > 5) return { grade: "F", gradeColor: "var(--danger)", gradeReason: "Critical debt burden — interest is consuming your income" };
+  if (ratio > 20) return { grade: "D", gradeColor: "var(--warn)", gradeReason: "High interest burden relative to income" };
+  if (ratio > 10) return { grade: "C", gradeColor: "var(--gold)", gradeReason: "Moderate interest burden — room to improve" };
+  if (ratio > 5) return { grade: "B", gradeColor: "var(--info)", gradeReason: "Manageable debt load — you're on the right track" };
+  return { grade: "A", gradeColor: "var(--sage)", gradeReason: "Low interest burden — strong financial position" };
+}
+
+function formatMonths(m: number): string {
+  if (m >= 600) return "50+ years";
+  const yrs = Math.floor(m / 12);
+  const mos = m % 12;
+  if (yrs === 0) return `${mos} mo`;
+  if (mos === 0) return `${yrs} yr`;
+  return `${yrs} yr ${mos} mo`;
+}
 
 export default function Home() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  const [auditInputs, setAuditInputs] = useState({ debt: "", apr: "", income: "" });
-  const [auditResults, setAuditResults] = useState<{
-    dailyCost: number;
-    annualInterest: number;
-    monthlyInterest: number;
-    interestRatio: number;
-  } | null>(null);
+  const [auditDebts, setAuditDebts] = useState<AuditDebt[]>([
+    { id: generateId(), name: "", balance: "", apr: "", minPayment: "" },
+  ]);
+  const [auditIncome, setAuditIncome] = useState("");
+  const [auditEmail, setAuditEmail] = useState("");
+  const [auditResults, setAuditResults] = useState<AuditResults | null>(null);
+  const [debtErrors, setDebtErrors] = useState<Record<string, string>>({});
   const resultsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!loading && user) router.replace("/dashboard");
   }, [user, loading, router]);
 
+  function addDebt() {
+    if (auditDebts.length >= 10) return;
+    setAuditDebts(prev => [...prev, { id: generateId(), name: "", balance: "", apr: "", minPayment: "" }]);
+  }
+
+  function removeDebt(id: string) {
+    setAuditDebts(prev => prev.filter(d => d.id !== id));
+    setDebtErrors(prev => { const n = { ...prev }; delete n[id]; return n; });
+  }
+
+  function updateDebt(id: string, field: keyof AuditDebt, value: string) {
+    setAuditDebts(prev => prev.map(d => d.id === id ? { ...d, [field]: value } : d));
+  }
+
   function runAudit(e: React.FormEvent) {
     e.preventDefault();
-    const debt = parseFloat(auditInputs.debt.replace(/[^0-9.]/g, ""));
-    const apr = parseFloat(auditInputs.apr.replace(/[^0-9.]/g, ""));
-    const income = parseFloat(auditInputs.income.replace(/[^0-9.]/g, ""));
-    if (!debt || !apr || !income || debt <= 0 || apr <= 0 || income <= 0) return;
+    const monthlyIncome = parseNum(auditIncome);
+    if (!monthlyIncome || monthlyIncome <= 0) return;
 
-    const annualInterest = debt * (apr / 100);
-    const monthlyInterest = annualInterest / 12;
-    const monthlyRate = apr / 100 / 12;
-    const n = 120;
-    const monthlyPayment = monthlyRate > 0
-      ? debt * (monthlyRate * Math.pow(1 + monthlyRate, n)) / (Math.pow(1 + monthlyRate, n) - 1)
-      : debt / n;
-    const interestRatio = Math.min(Math.round((monthlyInterest / monthlyPayment) * 100), 99);
+    const errors: Record<string, string> = {};
+    const parsed = auditDebts.map(d => ({
+      id: d.id,
+      name: d.name.trim() || "Debt",
+      balance: parseNum(d.balance),
+      apr: parseNum(d.apr),
+      minPayment: parseNum(d.minPayment),
+    }));
+
+    for (const d of parsed) {
+      if (d.balance <= 0 || d.apr <= 0 || d.minPayment <= 0) continue;
+      const monthlyInterest = d.balance * (d.apr / 100 / 12);
+      if (d.minPayment < monthlyInterest) {
+        errors[d.id] = `Min payment is less than monthly interest ($${monthlyInterest.toFixed(2)}) — balance will never decrease`;
+      }
+    }
+    setDebtErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    const valid = parsed.filter(d => d.balance > 0 && d.apr > 0 && d.minPayment > 0);
+    if (valid.length === 0) return;
+
+    const totalBalance = valid.reduce((s, d) => s + d.balance, 0);
+    const totalMinPayments = valid.reduce((s, d) => s + d.minPayment, 0);
+    const totalMonthlyInterest = valid.reduce((s, d) => s + d.balance * (d.apr / 100 / 12), 0);
+    const totalAnnualInterest = totalMonthlyInterest * 12;
+    const totalDailyInterest = totalAnnualInterest / 365;
+    const hourlyRate = (monthlyIncome * 12) / 2080;
+    const hoursOfWorkPerDay = totalDailyInterest / hourlyRate;
+    const interestToIncomeRatio = (totalMonthlyInterest / monthlyIncome) * 100;
+
+    const { grade, gradeColor, gradeReason } = computeGrade(totalMonthlyInterest, monthlyIncome, totalBalance);
+
+    const debtDetails = valid.map(d => {
+      const monthlyInterest = d.balance * (d.apr / 100 / 12);
+      const savingsMonthly = d.balance * ((d.apr - 10) / 100 / 12);
+      return {
+        id: d.id, name: d.name, balance: d.balance, apr: d.apr, minPayment: d.minPayment,
+        monthlyInterest, isRefinanceCandidate: d.apr > 15,
+        estimatedAnnualSavings: Math.max(0, savingsMonthly * 12),
+      };
+    });
+
+    const uiDebts: UIDebt[] = valid.map(d => ({ ...d }));
+    const settings: UISettings = { monthlyBudget: totalMinPayments, startDate: todayYYYYMM() };
+    const settingsPlus: UISettings = { monthlyBudget: totalMinPayments + 100, startDate: todayYYYYMM() };
+
+    const minOnlySched = runMinOnlySchedule(uiDebts, settings);
+    const snowballPlusSched = buildSnowballSchedule(uiDebts, settingsPlus);
 
     setAuditResults({
-      dailyCost: annualInterest / 365,
-      annualInterest,
-      monthlyInterest,
-      interestRatio,
+      grade, gradeColor, gradeReason,
+      totalDailyInterest, totalMonthlyInterest, totalAnnualInterest, hoursOfWorkPerDay,
+      debtDetails,
+      minOnlyMonths: minOnlySched.length,
+      minOnlyInterest: scheduleInterest(minOnlySched),
+      snowballPlusMonths: snowballPlusSched.length,
+      snowballPlusInterest: scheduleInterest(snowballPlusSched),
+      interestSavings: scheduleInterest(minOnlySched) - scheduleInterest(snowballPlusSched),
+      totalBalance, totalMinPayments, interestToIncomeRatio,
     });
     setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  }
+
+  async function handleEmailSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const email = auditEmail.trim();
+    if (email) {
+      fetch("/api/mailerlite/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      }).catch(() => {});
+    }
+    const enc = encodeURIComponent(email);
+    window.location.href = enc ? `/register?email=${enc}` : "/register";
   }
 
   if (loading || user) {
@@ -88,6 +227,12 @@ export default function Home() {
       </div>
     );
   }
+
+  const labelStyle: React.CSSProperties = {
+    display: "block", fontSize: 12, fontWeight: 600,
+    color: "var(--ink-muted)", marginBottom: 6,
+    letterSpacing: "0.05em", textTransform: "uppercase",
+  };
 
   return (
     <div style={{ background: "var(--bg)", fontFamily: "var(--font-ui)" }}>
@@ -109,7 +254,7 @@ export default function Home() {
       </header>
 
       {/* ── HERO / AUDIT TOOL ── */}
-      <section style={{ padding: "5rem 2rem 4rem", maxWidth: 760, margin: "0 auto" }}>
+      <section style={{ padding: "5rem 2rem 4rem", maxWidth: 800, margin: "0 auto" }}>
 
         <div style={{ textAlign: "center", marginBottom: "2.5rem" }}>
           <div style={{
@@ -140,43 +285,104 @@ export default function Home() {
             background: "var(--surface)", border: "1px solid var(--line-strong)",
             borderRadius: "var(--r-lg)", padding: "2rem", boxShadow: "var(--shadow-md)",
           }}>
-            <div style={{ display: "grid", gap: "1.25rem", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
+            {/* Monthly Income */}
+            <div style={{ marginBottom: "1.5rem" }}>
+              <label style={labelStyle}>Monthly Income (after tax)</label>
+              <div style={{ position: "relative", maxWidth: 220 }}>
+                <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--ink-muted)", fontSize: 14, pointerEvents: "none" }}>$</span>
+                <input
+                  type="text" inputMode="numeric" placeholder="6,500"
+                  value={auditIncome}
+                  onChange={e => { const r = e.target.value.replace(/[^0-9]/g, ""); setAuditIncome(r ? Number(r).toLocaleString() : ""); }}
+                  className="form-input" style={{ paddingLeft: 28 }}
+                />
+              </div>
+            </div>
 
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--ink-muted)", marginBottom: 6, letterSpacing: "0.05em", textTransform: "uppercase" as const }}>
-                  Total Debt Balance
-                </label>
-                <div style={{ position: "relative" }}>
-                  <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--ink-muted)", fontSize: 14, pointerEvents: "none" as const }}>$</span>
-                  <input type="text" inputMode="numeric" placeholder="45,000" value={auditInputs.debt}
-                    onChange={(e) => { const r = e.target.value.replace(/[^0-9]/g, ""); setAuditInputs(p => ({ ...p, debt: r ? Number(r).toLocaleString() : "" })); }}
-                    className="form-input" style={{ paddingLeft: 28 }} />
-                </div>
+            {/* Debt rows */}
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ ...labelStyle, marginBottom: "0.75rem" }}>Your Debts</label>
+
+              {/* Column headers */}
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "2fr 1.2fr 0.8fr 1.2fr 28px",
+                gap: 8, marginBottom: 6,
+              }}>
+                {["Name", "Balance", "APR", "Min Payment", ""].map((h, i) => (
+                  <div key={i} style={{ fontSize: 11, fontWeight: 600, color: "var(--ink-faint)", letterSpacing: "0.05em", textTransform: "uppercase" as const }}>{h}</div>
+                ))}
               </div>
 
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--ink-muted)", marginBottom: 6, letterSpacing: "0.05em", textTransform: "uppercase" as const }}>
-                  Average APR
-                </label>
-                <div style={{ position: "relative" }}>
-                  <input type="text" inputMode="decimal" placeholder="18.5" value={auditInputs.apr}
-                    onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ""); const p = v.split("."); setAuditInputs(prev => ({ ...prev, apr: p.length > 2 ? p[0] + "." + p.slice(1).join("") : v })); }}
-                    className="form-input" style={{ paddingRight: 28 }} />
-                  <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "var(--ink-muted)", fontSize: 14, pointerEvents: "none" as const }}>%</span>
-                </div>
+              <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                {auditDebts.map(debt => (
+                  <div key={debt.id}>
+                    <div style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr 0.8fr 1.2fr 28px", gap: 8, alignItems: "center" }}>
+                      <input
+                        type="text" placeholder="Chase Visa"
+                        value={debt.name}
+                        onChange={e => updateDebt(debt.id, "name", e.target.value)}
+                        className="form-input"
+                      />
+                      <div style={{ position: "relative" }}>
+                        <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--ink-muted)", fontSize: 13, pointerEvents: "none" }}>$</span>
+                        <input
+                          type="text" inputMode="numeric" placeholder="8,000"
+                          value={debt.balance}
+                          onChange={e => { const r = e.target.value.replace(/[^0-9]/g, ""); updateDebt(debt.id, "balance", r ? Number(r).toLocaleString() : ""); }}
+                          className="form-input" style={{ paddingLeft: 24 }}
+                        />
+                      </div>
+                      <div style={{ position: "relative" }}>
+                        <input
+                          type="text" inputMode="decimal" placeholder="18.5"
+                          value={debt.apr}
+                          onChange={e => { const v = e.target.value.replace(/[^0-9.]/g, ""); const p = v.split("."); updateDebt(debt.id, "apr", p.length > 2 ? p[0] + "." + p.slice(1).join("") : v); }}
+                          className="form-input" style={{ paddingRight: 22 }}
+                        />
+                        <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "var(--ink-muted)", fontSize: 13, pointerEvents: "none" }}>%</span>
+                      </div>
+                      <div style={{ position: "relative" }}>
+                        <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--ink-muted)", fontSize: 13, pointerEvents: "none" }}>$</span>
+                        <input
+                          type="text" inputMode="numeric" placeholder="200"
+                          value={debt.minPayment}
+                          onChange={e => { const r = e.target.value.replace(/[^0-9]/g, ""); updateDebt(debt.id, "minPayment", r ? Number(r).toLocaleString() : ""); }}
+                          className="form-input" style={{ paddingLeft: 24 }}
+                        />
+                      </div>
+                      {auditDebts.length > 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => removeDebt(debt.id)}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink-faint)", fontSize: 16, padding: 0, lineHeight: 1, fontFamily: "var(--font-ui)" }}
+                          aria-label="Remove debt"
+                        >×</button>
+                      ) : <div />}
+                    </div>
+                    {debtErrors[debt.id] && (
+                      <div style={{ fontSize: 11, color: "var(--danger)", marginTop: 4, paddingLeft: 2 }}>
+                        {debtErrors[debt.id]}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
 
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--ink-muted)", marginBottom: 6, letterSpacing: "0.05em", textTransform: "uppercase" as const }}>
-                  Monthly Income
-                </label>
-                <div style={{ position: "relative" }}>
-                  <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--ink-muted)", fontSize: 14, pointerEvents: "none" as const }}>$</span>
-                  <input type="text" inputMode="numeric" placeholder="6,500" value={auditInputs.income}
-                    onChange={(e) => { const r = e.target.value.replace(/[^0-9]/g, ""); setAuditInputs(p => ({ ...p, income: r ? Number(r).toLocaleString() : "" })); }}
-                    className="form-input" style={{ paddingLeft: 28 }} />
-                </div>
-              </div>
+              {auditDebts.length < 10 && (
+                <button
+                  type="button"
+                  onClick={addDebt}
+                  style={{
+                    marginTop: 10, background: "none", border: "1px dashed var(--line-strong)",
+                    borderRadius: "var(--r-sm)", cursor: "pointer", fontSize: 13,
+                    color: "var(--ink-muted)", padding: "7px 16px", fontFamily: "var(--font-ui)",
+                    width: "100%",
+                  }}
+                >
+                  + Add another debt
+                </button>
+              )}
             </div>
 
             <div style={{ marginTop: "1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" as const, gap: 12 }}>
@@ -203,66 +409,184 @@ export default function Home() {
               {/* Top accent */}
               <div style={{ height: 4, background: "linear-gradient(90deg, var(--info), var(--sage))" }} />
 
-              {/* Header */}
-              <div style={{ padding: "1.75rem 2rem 1.25rem" }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>
-                  Here&apos;s what your debt is costing you
+              {/* ── Grade ── */}
+              <div style={{ padding: "2rem 2rem 1.5rem", borderBottom: "1px solid var(--line)", textAlign: "center" }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--ink-faint)", letterSpacing: "2px", textTransform: "uppercase" as const, marginBottom: "0.75rem" }}>
+                  Your Financial Health Grade
                 </div>
-                <div style={{ fontSize: 13, color: "var(--ink-muted)", fontWeight: 300 }}>
-                  Based on ${parseFloat(auditInputs.debt.replace(/,/g, "")).toLocaleString()} at {auditInputs.apr}% APR
+                <div style={{
+                  fontSize: 96, fontWeight: 800, lineHeight: 1,
+                  color: auditResults.gradeColor,
+                  fontFamily: "var(--font-display)",
+                  marginBottom: "0.5rem",
+                }}>
+                  {auditResults.grade}
+                </div>
+                <div style={{ fontSize: 15, color: "var(--ink)", fontWeight: 500, marginBottom: 4 }}>
+                  {auditResults.gradeReason}
+                </div>
+                <div style={{ fontSize: 13, color: "var(--ink-muted)" }}>
+                  Based on your {auditResults.interestToIncomeRatio.toFixed(1)}% interest-to-income ratio
                 </div>
               </div>
 
-              {/* 3 key numbers */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", borderTop: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }}>
-                {[
-                  {
-                    value: `$${auditResults.dailyCost.toFixed(2)}`,
-                    label: "per day in interest",
-                    sub: "While you sleep, eat, work — the meter runs.",
-                    color: "var(--danger)",
-                  },
-                  {
-                    value: `$${Math.round(auditResults.annualInterest).toLocaleString()}`,
-                    label: "per year to lenders",
-                    sub: "Money that could be building your future.",
-                    color: "var(--warn)",
-                  },
-                  {
-                    value: `${auditResults.interestRatio}%`,
-                    label: "of each payment is interest",
-                    sub: auditResults.interestRatio > 50
-                      ? "More than half goes to the lender, not your balance."
-                      : "The rest actually reduces what you owe.",
-                    color: auditResults.interestRatio > 50 ? "var(--danger)" : "var(--ink)",
-                  },
-                ].map((stat, i) => (
-                  <div key={i} style={{ padding: "1.5rem 1.75rem", borderRight: i < 2 ? "1px solid var(--line)" : "none" }}>
-                    <div style={{ fontSize: "clamp(26px, 4vw, 34px)", fontWeight: 800, color: stat.color, lineHeight: 1, marginBottom: 4 }}>
-                      {stat.value}
-                    </div>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: "var(--ink)", marginBottom: 4 }}>{stat.label}</div>
-                    <div style={{ fontSize: 12, color: "var(--ink-muted)", lineHeight: 1.5 }}>{stat.sub}</div>
+              {/* ── Interest Leakage ── */}
+              <div style={{ borderBottom: "1px solid var(--line)" }}>
+                <div style={{ padding: "1rem 2rem 0.5rem" }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--ink-faint)", letterSpacing: "2px", textTransform: "uppercase" as const }}>
+                    Interest Leakage
                   </div>
-                ))}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
+                  {[
+                    {
+                      value: `$${auditResults.totalDailyInterest.toFixed(2)}`,
+                      label: "per day in interest",
+                      sub: "While you sleep, eat, and work — the meter runs.",
+                      color: "var(--danger)",
+                    },
+                    {
+                      value: auditResults.hoursOfWorkPerDay >= 8
+                        ? "a full workday"
+                        : auditResults.hoursOfWorkPerDay < 0.1
+                          ? `${Math.round(auditResults.hoursOfWorkPerDay * 60)} min`
+                          : `${auditResults.hoursOfWorkPerDay.toFixed(1)} hrs`,
+                      label: "of work/day just for interest",
+                      sub: "Hours of your labor handed straight to lenders.",
+                      color: "var(--warn)",
+                    },
+                    {
+                      value: `$${Math.round(auditResults.totalMonthlyInterest).toLocaleString()}`,
+                      label: "per month to lenders",
+                      sub: "Money that could be building your future.",
+                      color: "var(--ink)",
+                    },
+                  ].map((stat, i) => (
+                    <div key={i} style={{ padding: "1.25rem 1.75rem", borderRight: i < 2 ? "1px solid var(--line)" : "none" }}>
+                      <div style={{ fontSize: "clamp(22px, 3.5vw, 30px)", fontWeight: 800, color: stat.color, lineHeight: 1, marginBottom: 4 }}>
+                        {stat.value}
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: "var(--ink)", marginBottom: 4 }}>{stat.label}</div>
+                      <div style={{ fontSize: 12, color: "var(--ink-muted)", lineHeight: 1.5 }}>{stat.sub}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              {/* Encouragement + CTA */}
+              {/* ── Payoff Timeline ── */}
+              <div style={{ borderBottom: "1px solid var(--line)" }}>
+                <div style={{ padding: "1rem 2rem 0.5rem" }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--ink-faint)", letterSpacing: "2px", textTransform: "uppercase" as const }}>
+                    Payoff Timeline
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderTop: "1px solid var(--line)" }}>
+                  <div style={{ padding: "1.25rem 1.75rem", borderRight: "1px solid var(--line)" }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--ink-faint)", textTransform: "uppercase" as const, letterSpacing: "0.05em", marginBottom: 8 }}>
+                      Minimums only
+                    </div>
+                    <div style={{ fontSize: "clamp(20px, 3vw, 26px)", fontWeight: 800, color: "var(--ink)", lineHeight: 1, marginBottom: 4 }}>
+                      {formatMonths(auditResults.minOnlyMonths)}
+                    </div>
+                    <div style={{ fontSize: 13, color: "var(--ink-muted)" }}>
+                      ${Math.round(auditResults.minOnlyInterest).toLocaleString()} total interest
+                    </div>
+                  </div>
+                  <div style={{ padding: "1.25rem 1.75rem", background: "var(--sage-soft)" }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--sage-deep)", textTransform: "uppercase" as const, letterSpacing: "0.05em", marginBottom: 8 }}>
+                      Snowball + $100/mo extra
+                    </div>
+                    <div style={{ fontSize: "clamp(20px, 3vw, 26px)", fontWeight: 800, color: "var(--sage-deep)", lineHeight: 1, marginBottom: 4 }}>
+                      {formatMonths(auditResults.snowballPlusMonths)}
+                    </div>
+                    <div style={{ fontSize: 13, color: "var(--sage-deep)" }}>
+                      Save ~${Math.round(auditResults.interestSavings).toLocaleString()} in interest
+                    </div>
+                  </div>
+                </div>
+                <div style={{ padding: "0.75rem 1.75rem", background: "var(--surface-sunk)", borderTop: "0.5px solid var(--line)" }}>
+                  <div style={{ fontSize: 12, color: "var(--ink-muted)" }}>
+                    Just $100/month extra — put in the right order — can make a significant difference. The full tracker shows your exact payoff date for every extra dollar you contribute.
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Refinancing Opportunities ── */}
+              {auditResults.debtDetails.some(d => d.isRefinanceCandidate) && (
+                <div style={{ borderBottom: "1px solid var(--line)" }}>
+                  <div style={{ padding: "1rem 2rem 0.5rem" }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--ink-faint)", letterSpacing: "2px", textTransform: "uppercase" as const }}>
+                      Refinancing Opportunities
+                    </div>
+                  </div>
+                  <div style={{ padding: "0 1.75rem 1.25rem" }}>
+                    <div style={{
+                      background: "var(--warn-soft, #fef9ec)",
+                      border: "1px solid var(--warn, #d97706)",
+                      borderLeft: "4px solid var(--warn, #d97706)",
+                      borderRadius: "var(--r-sm)",
+                      padding: "1rem 1.25rem",
+                    }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: "var(--ink)", marginBottom: "0.75rem" }}>
+                        These debts have high APRs — refinancing or a balance transfer could save you money:
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                        {auditResults.debtDetails.filter(d => d.isRefinanceCandidate).map(d => (
+                          <div key={d.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" as const }}>
+                            <div>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{d.name}</span>
+                              <span style={{ fontSize: 13, color: "var(--warn)", fontWeight: 500 }}> · {d.apr}% APR</span>
+                            </div>
+                            <div style={{ fontSize: 12, color: "var(--ink-muted)", textAlign: "right" as const }}>
+                              Refi to ~10% → save ~${Math.round(d.estimatedAnnualSavings).toLocaleString()}/yr
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: "0.75rem" }}>
+                        Consider personal loans, credit union offers, or balance transfer cards. Shop multiple lenders to confirm rates for your credit profile.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Encouragement + CTA ── */}
               <div style={{ padding: "1.75rem 2rem" }}>
                 <p style={{ fontSize: 15, color: "var(--ink-muted)", lineHeight: 1.7, marginBottom: "1.5rem", fontWeight: 300 }}>
                   The good news? <strong style={{ color: "var(--ink)", fontWeight: 600 }}>This is completely fixable.</strong> The debt snowball method gives you a specific payoff date for every debt — not a rough estimate, an actual month and year you can work toward. Thousands of people use it to get out faster than they thought possible.{" "}
                   <strong style={{ color: "var(--sage)", fontWeight: 500 }}>The tracker is free.</strong>
                 </p>
 
-                <a
-                  href="/register"
-                  className="btn primary"
-                  style={{ display: "inline-flex", borderRadius: "var(--r-pill)", fontSize: 15, padding: "13px 28px" }}
-                >
-                  Start tracking — it&apos;s free →
-                </a>
-                <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 10 }}>
-                  Free forever · No credit card · Cancel anytime
+                <div style={{
+                  background: "var(--info-soft)",
+                  border: "1px solid #bfdbfe",
+                  borderRadius: "var(--r-lg)",
+                  padding: "1.5rem",
+                }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>
+                    Start tracking your debt — free
+                  </div>
+                  <div style={{ fontSize: 13, color: "var(--ink-muted)", marginBottom: "1rem" }}>
+                    Enter your email to create your free account and build your payoff plan.
+                  </div>
+                  <form onSubmit={handleEmailSubmit} style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+                    <input
+                      type="email"
+                      required
+                      placeholder="your@email.com"
+                      value={auditEmail}
+                      onChange={e => setAuditEmail(e.target.value)}
+                      className="form-input"
+                      style={{ flex: "1 1 220px", minWidth: 0 }}
+                    />
+                    <button type="submit" className="btn primary" style={{ borderRadius: "var(--r-pill)", whiteSpace: "nowrap" as const }}>
+                      Get started free →
+                    </button>
+                  </form>
+                  <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 10 }}>
+                    Free forever · No credit card · Cancel anytime
+                  </div>
                 </div>
               </div>
             </div>
@@ -270,7 +594,7 @@ export default function Home() {
             {/* Re-run */}
             <div style={{ textAlign: "center", marginTop: "1rem" }}>
               <button
-                onClick={() => { setAuditResults(null); setAuditInputs({ debt: "", apr: "", income: "" }); }}
+                onClick={() => { setAuditResults(null); setDebtErrors({}); }}
                 style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "var(--ink-muted)", textDecoration: "underline", fontFamily: "var(--font-ui)" }}
               >
                 Edit inputs / Re-run audit
@@ -362,26 +686,6 @@ export default function Home() {
               </div>
             </div>
           ))}
-        </div>
-      </section>
-
-      {/* ── TESTIMONIALS ── */}
-      <section style={{ background: "var(--surface-sunk)", borderTop: "0.5px solid var(--line)", borderBottom: "0.5px solid var(--line)" }}>
-        <div style={{ padding: "5rem 2rem", maxWidth: 760, margin: "0 auto" }}>
-          <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "2px", color: "var(--sage)", marginBottom: "0.75rem", fontWeight: 500 }}>Real people, real progress</div>
-          <h2 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(26px, 4vw, 36px)", fontWeight: 400, lineHeight: 1.2, maxWidth: 460, marginBottom: "2.75rem", color: "var(--ink)" }}>
-            The finish line feels real now.
-          </h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem" }}>
-            {testimonials.map(t => (
-              <div key={t.author} style={{ background: "var(--surface)", border: "0.5px solid var(--line)", borderRadius: "var(--r-lg)", padding: "1.5rem" }}>
-                <div style={{ color: "var(--gold)", fontSize: 13, marginBottom: "0.75rem" }}>★★★★★</div>
-                <p style={{ fontSize: 14, lineHeight: 1.65, color: "var(--ink-muted)", fontWeight: 300, margin: "0 0 1rem" }}>&ldquo;{t.quote}&rdquo;</p>
-                <div style={{ fontSize: 13, fontWeight: 500, color: "var(--ink)" }}>{t.author}</div>
-                <div style={{ fontSize: 12, color: "var(--ink-faint)" }}>{t.detail}</div>
-              </div>
-            ))}
-          </div>
         </div>
       </section>
 
