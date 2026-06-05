@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
@@ -29,51 +29,21 @@ const steps = [
   { n: "4", title: "Check in. Stay focused.", desc: "Come back monthly. Mark progress. Watch the numbers shrink. Keep breathing." },
 ];
 
-function SignUpForm({ email, setEmail, onSubmit }: {
-  email: string;
-  setEmail: (v: string) => void;
-  onSubmit: (e: React.FormEvent) => void;
-}) {
+function SignUpButton() {
   return (
-    <form onSubmit={onSubmit} style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, justifyContent: "center" }}>
-      <input
-        type="email"
-        required
-        placeholder="your@email.com"
-        value={email}
-        onChange={e => setEmail(e.target.value)}
-        className="form-input"
-        style={{ flex: "1 1 220px", minWidth: 0, maxWidth: 300 }}
-      />
-      <button type="submit" className="btn primary" style={{ borderRadius: "var(--r-pill)", whiteSpace: "nowrap" as const }}>
-        Sign up now for free →
-      </button>
-    </form>
+    <a href="/register" className="btn primary" style={{ borderRadius: "var(--r-pill)", fontSize: 15, padding: "14px 28px", justifyContent: "center" }}>
+      Sign up now for free →
+    </a>
   );
 }
 
 export default function Home() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [email, setEmail] = useState("");
 
   useEffect(() => {
     if (!loading && user) router.replace("/dashboard");
   }, [user, loading, router]);
-
-  async function handleEmailSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const val = email.trim();
-    if (val) {
-      fetch("/api/mailerlite/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: val }),
-      }).catch(() => {});
-    }
-    const enc = encodeURIComponent(val);
-    window.location.href = enc ? `/register?email=${enc}` : "/register";
-  }
 
   if (loading || user) {
     return (
@@ -119,7 +89,7 @@ export default function Home() {
         <p style={{ fontSize: 17, fontWeight: 300, lineHeight: 1.65, color: "var(--ink-muted)", maxWidth: 480, margin: "0 auto 2rem" }}>
           Exhale Debt gives you a real payoff date for every debt — not a rough estimate. Track your snowball, model what-ifs, and stay focused until it&apos;s done.
         </p>
-        <SignUpForm email={email} setEmail={setEmail} onSubmit={handleEmailSubmit} />
+        <SignUpButton />
         <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 12 }}>
           Free forever · No credit card required
         </div>
@@ -218,7 +188,7 @@ export default function Home() {
         <p style={{ fontSize: 16, color: "var(--ink-muted)", fontWeight: 300, maxWidth: 440, margin: "0 auto 2.5rem" }}>
           Enter your debts. Set your payment. See the exact month and year you become debt-free — free forever.
         </p>
-        <SignUpForm email={email} setEmail={setEmail} onSubmit={handleEmailSubmit} />
+        <SignUpButton />
         <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: "1rem" }}>Free forever · No credit card required</div>
       </section>
 
