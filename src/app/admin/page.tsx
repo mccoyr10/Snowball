@@ -13,14 +13,35 @@ interface CodeRecord {
   expiresAt: { _seconds: number } | null;
 }
 
+interface UserRecord {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  subscriptionStatus: string | null;
+  lifetimeAccess: boolean;
+  accessGrantedVia: string | null;
+  stripeCustomerId: string | null;
+  createdAt: number | null;
+  trialStartedAt: number | null;
+}
+
+interface UserStats {
+  total: number;
+  newLast7: number;
+  newLast30: number;
+  lifetimeCount: number;
+  byStatus: Record<string, number>;
+}
+
 export default function AdminPage() {
   const [adminKey, setAdminKey] = useState("");
   const [unlocked, setUnlocked] = useState(false);
   const [authError, setAuthError] = useState("");
+  const [activeTab, setActiveTab] = useState<"codes" | "users">("codes");
 
+  // Discount codes state
   const [codes, setCodes] = useState<CodeRecord[]>([]);
   const [loadingCodes, setLoadingCodes] = useState(false);
-
   const [form, setForm] = useState({
     code: "",
     type: "lifetime" as "lifetime" | "extended_trial",
@@ -34,6 +55,11 @@ export default function AdminPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState("");
+
+  // Users state
+  const [users, setUsers] = useState<UserRecord[]>([]);
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [loadingUsers, setLoadingUsers] = useState(false);
 
   const fetchCodes = useCallback(async (key: string) => {
     setLoadingCodes(true);
@@ -54,20 +80,34 @@ export default function AdminPage() {
     }
   }, []);
 
+  const fetchUsers = useCallback(async (key: string) => {
+    setLoadingUsers(true);
+    try {
+      const res = await fetch("/api/admin/users", {
+        headers: { Authorization: `Bearer ${key}` },
+      });
+      if (!res.ok) {
+        const data = await res.json() as { error?: string };
+        throw new Error(data.error || "Failed to load users.");
+      }
+      const data = await res.json() as { stats: UserStats; users: UserRecord[] };
+      setUserStats(data.stats);
+      setUsers(data.users);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingUsers(false);
+    }
+  }, []);
+
   async function handleUnlock(e: React.FormEvent) {
     e.preventDefault();
     setAuthError("");
     const res = await fetch("/api/admin/create-discount-code", {
       headers: { Authorization: `Bearer ${adminKey}` },
     });
-    if (res.status === 401) {
-      setAuthError("Wrong admin key.");
-      return;
-    }
-    if (!res.ok) {
-      setAuthError("Something went wrong.");
-      return;
-    }
+    if (res.status === 401) { setAuthError("Wrong admin key."); return; }
+    if (!res.ok) { setAuthError("Something went wrong."); return; }
     const data = await res.json() as { codes: CodeRecord[] };
     setCodes(data.codes);
     setUnlocked(true);
@@ -78,7 +118,6 @@ export default function AdminPage() {
     setSubmitError("");
     setSubmitSuccess("");
     setSubmitting(true);
-
     const body = {
       code: form.code.trim().toUpperCase(),
       type: form.type,
@@ -87,14 +126,10 @@ export default function AdminPage() {
       purpose: form.purpose.trim(),
       expiresAt: form.noExpiry ? null : form.expiresAt || null,
     };
-
     try {
       const res = await fetch("/api/admin/create-discount-code", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${adminKey}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminKey}` },
         body: JSON.stringify(body),
       });
       const data = await res.json() as { error?: string; code?: string };
@@ -114,12 +149,19 @@ export default function AdminPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (unlocked && activeTab === "users" && users.length === 0 && !loadingUsers) {
+      fetchUsers(adminKey);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, unlocked]);
+
   if (!unlocked) {
     return (
       <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "var(--bg, #f9fafb)", padding: 24 }}>
         <div style={{ background: "#fff", borderRadius: 16, padding: 32, width: "100%", maxWidth: 400, boxShadow: "0 2px 16px rgba(0,0,0,0.08)" }}>
           <h1 style={{ fontSize: 22, fontWeight: 600, margin: "0 0 4px" }}>Admin</h1>
-          <p style={{ fontSize: 14, color: "#6b7280", margin: "0 0 24px" }}>Enter your admin key to manage discount codes.</p>
+          <p style={{ fontSize: 14, color: "#6b7280", margin: "0 0 24px" }}>Enter your admin key to continue.</p>
           <form onSubmit={handleUnlock} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <input
               type="password"
@@ -131,10 +173,7 @@ export default function AdminPage() {
               style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
             />
             {authError && <p style={{ fontSize: 13, color: "#dc2626", margin: 0 }}>{authError}</p>}
-            <button
-              type="submit"
-              style={{ padding: "10px", borderRadius: 8, background: "#1d4ed8", color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
-            >
+            <button type="submit" style={{ padding: "10px", borderRadius: 8, background: "#1d4ed8", color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
               Unlock
             </button>
           </form>
@@ -145,189 +184,200 @@ export default function AdminPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg, #f9fafb)", padding: 24 }}>
-      <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: 24 }}>
+      <div style={{ maxWidth: 860, margin: "0 auto", display: "flex", flexDirection: "column", gap: 24 }}>
 
+        {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>Discount Codes</h1>
-          <button
-            onClick={() => setUnlocked(false)}
-            style={{ fontSize: 13, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}
-          >
+          <div style={{ display: "flex", gap: 8 }}>
+            {(["codes", "users"] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                style={{
+                  padding: "7px 16px", borderRadius: 8, fontSize: 14, fontWeight: 600, border: "none", cursor: "pointer",
+                  background: activeTab === tab ? "#1d4ed8" : "#e5e7eb",
+                  color: activeTab === tab ? "#fff" : "#374151",
+                }}
+              >
+                {tab === "codes" ? "Discount Codes" : "Users"}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setUnlocked(false)} style={{ fontSize: 13, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>
             Lock
           </button>
         </div>
 
-        {/* Create form */}
-        <div style={{ background: "#fff", borderRadius: 16, padding: 24, boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, margin: "0 0 16px" }}>Create a new code</h2>
-          <form onSubmit={handleCreate} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div>
-                <label style={labelStyle}>Code</label>
-                <input
-                  value={form.code}
-                  onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
-                  placeholder="e.g. LIFETIME-JANE"
-                  required
-                  style={inputStyle}
-                />
-              </div>
-              <div>
-                <label style={labelStyle}>Type</label>
-                <select
-                  value={form.type}
-                  onChange={e => setForm(f => ({ ...f, type: e.target.value as "lifetime" | "extended_trial" }))}
-                  style={inputStyle}
-                >
-                  <option value="lifetime">Lifetime access</option>
-                  <option value="extended_trial">Free trial (N days)</option>
-                </select>
-              </div>
+        {/* Discount Codes Tab */}
+        {activeTab === "codes" && (
+          <>
+            <div style={{ background: "#fff", borderRadius: 16, padding: 24, boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
+              <h2 style={{ fontSize: 16, fontWeight: 600, margin: "0 0 16px" }}>Create a new code</h2>
+              <form onSubmit={handleCreate} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={labelStyle}>Code</label>
+                    <input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="e.g. LIFETIME-JANE" required style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Type</label>
+                    <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as "lifetime" | "extended_trial" }))} style={inputStyle}>
+                      <option value="lifetime">Lifetime access</option>
+                      <option value="extended_trial">Free trial (N days)</option>
+                    </select>
+                  </div>
+                </div>
+                {form.type === "extended_trial" && (
+                  <div style={{ maxWidth: 160 }}>
+                    <label style={labelStyle}>Trial length (days)</label>
+                    <input type="number" min={1} value={form.trialDays} onChange={e => setForm(f => ({ ...f, trialDays: e.target.value }))} required style={inputStyle} />
+                  </div>
+                )}
+                <div>
+                  <label style={labelStyle}>Max uses</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <input type="number" min={1} value={form.maxUses} onChange={e => setForm(f => ({ ...f, maxUses: e.target.value }))} disabled={form.unlimitedUses} style={{ ...inputStyle, width: 100, opacity: form.unlimitedUses ? 0.4 : 1 }} />
+                    <label style={{ fontSize: 13, color: "#374151", display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                      <input type="checkbox" checked={form.unlimitedUses} onChange={e => setForm(f => ({ ...f, unlimitedUses: e.target.checked }))} />
+                      Unlimited
+                    </label>
+                  </div>
+                  <p style={{ fontSize: 12, color: "#9ca3af", margin: "4px 0 0" }}>Use 1 for a personal code. Use more for a shared promo.</p>
+                </div>
+                <div>
+                  <label style={labelStyle}>Purpose <span style={{ fontWeight: 400, color: "#9ca3af" }}>(your private note)</span></label>
+                  <input value={form.purpose} onChange={e => setForm(f => ({ ...f, purpose: e.target.value }))} placeholder="e.g. Research participant Jane Smith" required style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Expiry date</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <input type="date" value={form.expiresAt} onChange={e => setForm(f => ({ ...f, expiresAt: e.target.value }))} disabled={form.noExpiry} style={{ ...inputStyle, width: 180, opacity: form.noExpiry ? 0.4 : 1 }} />
+                    <label style={{ fontSize: 13, color: "#374151", display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                      <input type="checkbox" checked={form.noExpiry} onChange={e => setForm(f => ({ ...f, noExpiry: e.target.checked }))} />
+                      Never expires
+                    </label>
+                  </div>
+                </div>
+                {submitError && <p style={{ fontSize: 13, color: "#dc2626", margin: 0 }}>{submitError}</p>}
+                {submitSuccess && <p style={{ fontSize: 13, color: "#16a34a", margin: 0 }}>{submitSuccess}</p>}
+                <button type="submit" disabled={submitting} style={{ padding: "11px", borderRadius: 8, background: "#1d4ed8", color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.6 : 1, alignSelf: "flex-start", minWidth: 140 }}>
+                  {submitting ? "Creating…" : "Create code"}
+                </button>
+              </form>
             </div>
 
-            {form.type === "extended_trial" && (
-              <div style={{ maxWidth: 160 }}>
-                <label style={labelStyle}>Trial length (days)</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={form.trialDays}
-                  onChange={e => setForm(f => ({ ...f, trialDays: e.target.value }))}
-                  required
-                  style={inputStyle}
-                />
+            <div style={{ background: "#fff", borderRadius: 16, padding: 24, boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Existing codes</h2>
+                <button onClick={() => fetchCodes(adminKey)} style={{ fontSize: 13, color: "#1d4ed8", background: "none", border: "none", cursor: "pointer" }}>Refresh</button>
+              </div>
+              {loadingCodes ? (
+                <p style={{ fontSize: 14, color: "#9ca3af" }}>Loading…</p>
+              ) : codes.length === 0 ? (
+                <p style={{ fontSize: 14, color: "#9ca3af" }}>No codes yet.</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {codes.map(c => (
+                    <div key={c.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", alignItems: "start", gap: 12, padding: "12px 14px", borderRadius: 10, background: c.isActive ? "#f0fdf4" : "#f9fafb", border: `1px solid ${c.isActive ? "#bbf7d0" : "#e5e7eb"}` }}>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                          <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 14, letterSpacing: 0.5 }}>{c.id}</span>
+                          <span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 99, background: c.type === "lifetime" ? "#dbeafe" : "#fef3c7", color: c.type === "lifetime" ? "#1d4ed8" : "#92400e", fontWeight: 600 }}>
+                            {c.type === "lifetime" ? "Lifetime" : `${c.trialDays ?? "?"} days`}
+                          </span>
+                          {!c.isActive && <span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 99, background: "#fee2e2", color: "#991b1b", fontWeight: 600 }}>Inactive</span>}
+                        </div>
+                        <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 2px" }}>{c.purpose}</p>
+                        {c.expiresAt && <p style={{ fontSize: 11, color: "#9ca3af", margin: 0 }}>Expires {new Date(c.expiresAt._seconds * 1000).toLocaleDateString()}</p>}
+                      </div>
+                      <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>{c.currentUses}{c.maxUses !== null ? ` / ${c.maxUses}` : ""} used</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Users Tab */}
+        {activeTab === "users" && (
+          <>
+            {/* Stat cards */}
+            {userStats && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+                {[
+                  { label: "Total Users", value: userStats.total },
+                  { label: "Active", value: userStats.byStatus["active"] ?? 0 },
+                  { label: "Trialing", value: userStats.byStatus["trialing"] ?? 0 },
+                  { label: "Lifetime", value: userStats.lifetimeCount },
+                  { label: "New (7 days)", value: userStats.newLast7 },
+                  { label: "New (30 days)", value: userStats.newLast30 },
+                ].map(s => (
+                  <div key={s.label} style={{ background: "#fff", borderRadius: 14, padding: "16px 20px", boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
+                    <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 4px", fontWeight: 500 }}>{s.label}</p>
+                    <p style={{ fontSize: 26, fontWeight: 700, margin: 0, color: "#111827" }}>{s.value}</p>
+                  </div>
+                ))}
               </div>
             )}
 
-            <div>
-              <label style={labelStyle}>Max uses</label>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <input
-                  type="number"
-                  min={1}
-                  value={form.maxUses}
-                  onChange={e => setForm(f => ({ ...f, maxUses: e.target.value }))}
-                  disabled={form.unlimitedUses}
-                  style={{ ...inputStyle, width: 100, opacity: form.unlimitedUses ? 0.4 : 1 }}
-                />
-                <label style={{ fontSize: 13, color: "#374151", display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                  <input
-                    type="checkbox"
-                    checked={form.unlimitedUses}
-                    onChange={e => setForm(f => ({ ...f, unlimitedUses: e.target.checked }))}
-                  />
-                  Unlimited
-                </label>
+            {/* User table */}
+            <div style={{ background: "#fff", borderRadius: 16, padding: 24, boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>All Users</h2>
+                <button onClick={() => fetchUsers(adminKey)} style={{ fontSize: 13, color: "#1d4ed8", background: "none", border: "none", cursor: "pointer" }}>Refresh</button>
               </div>
-              <p style={{ fontSize: 12, color: "#9ca3af", margin: "4px 0 0" }}>
-                Use 1 for a personal code. Use more for a shared promo.
-              </p>
-            </div>
 
-            <div>
-              <label style={labelStyle}>Purpose <span style={{ fontWeight: 400, color: "#9ca3af" }}>(your private note)</span></label>
-              <input
-                value={form.purpose}
-                onChange={e => setForm(f => ({ ...f, purpose: e.target.value }))}
-                placeholder="e.g. Research participant Jane Smith"
-                required
-                style={inputStyle}
-              />
-            </div>
+              {loadingUsers ? (
+                <p style={{ fontSize: 14, color: "#9ca3af" }}>Loading…</p>
+              ) : users.length === 0 ? (
+                <p style={{ fontSize: 14, color: "#9ca3af" }}>No users found.</p>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
+                        {["Email", "Name", "Status", "Signed up", "Access via"].map(h => (
+                          <th key={h} style={{ textAlign: "left", padding: "6px 10px", fontWeight: 600, color: "#6b7280", whiteSpace: "nowrap" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.map(u => {
+                        const status = u.lifetimeAccess ? "lifetime" : (u.subscriptionStatus ?? "none");
+                        const statusColor = {
+                          active: { bg: "#dcfce7", text: "#15803d" },
+                          trialing: { bg: "#dbeafe", text: "#1d4ed8" },
+                          lifetime: { bg: "#ede9fe", text: "#6d28d9" },
+                          past_due: { bg: "#fef9c3", text: "#854d0e" },
+                          canceled: { bg: "#fee2e2", text: "#991b1b" },
+                        }[status] ?? { bg: "#f3f4f6", text: "#6b7280" };
 
-            <div>
-              <label style={labelStyle}>Expiry date</label>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <input
-                  type="date"
-                  value={form.expiresAt}
-                  onChange={e => setForm(f => ({ ...f, expiresAt: e.target.value }))}
-                  disabled={form.noExpiry}
-                  style={{ ...inputStyle, width: 180, opacity: form.noExpiry ? 0.4 : 1 }}
-                />
-                <label style={{ fontSize: 13, color: "#374151", display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                  <input
-                    type="checkbox"
-                    checked={form.noExpiry}
-                    onChange={e => setForm(f => ({ ...f, noExpiry: e.target.checked }))}
-                  />
-                  Never expires
-                </label>
-              </div>
-            </div>
-
-            {submitError && <p style={{ fontSize: 13, color: "#dc2626", margin: 0 }}>{submitError}</p>}
-            {submitSuccess && <p style={{ fontSize: 13, color: "#16a34a", margin: 0 }}>{submitSuccess}</p>}
-
-            <button
-              type="submit"
-              disabled={submitting}
-              style={{ padding: "11px", borderRadius: 8, background: "#1d4ed8", color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.6 : 1, alignSelf: "flex-start", minWidth: 140 }}
-            >
-              {submitting ? "Creating…" : "Create code"}
-            </button>
-          </form>
-        </div>
-
-        {/* Existing codes */}
-        <div style={{ background: "#fff", borderRadius: 16, padding: 24, boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Existing codes</h2>
-            <button
-              onClick={() => fetchCodes(adminKey)}
-              style={{ fontSize: 13, color: "#1d4ed8", background: "none", border: "none", cursor: "pointer" }}
-            >
-              Refresh
-            </button>
-          </div>
-
-          {loadingCodes ? (
-            <p style={{ fontSize: 14, color: "#9ca3af" }}>Loading…</p>
-          ) : codes.length === 0 ? (
-            <p style={{ fontSize: 14, color: "#9ca3af" }}>No codes yet.</p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {codes.map(c => (
-                <div key={c.id} style={{
-                  display: "grid", gridTemplateColumns: "1fr auto",
-                  alignItems: "start", gap: 12,
-                  padding: "12px 14px", borderRadius: 10,
-                  background: c.isActive ? "#f0fdf4" : "#f9fafb",
-                  border: `1px solid ${c.isActive ? "#bbf7d0" : "#e5e7eb"}`,
-                }}>
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
-                      <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 14, letterSpacing: 0.5 }}>{c.id}</span>
-                      <span style={{
-                        fontSize: 11, padding: "2px 7px", borderRadius: 99,
-                        background: c.type === "lifetime" ? "#dbeafe" : "#fef3c7",
-                        color: c.type === "lifetime" ? "#1d4ed8" : "#92400e",
-                        fontWeight: 600,
-                      }}>
-                        {c.type === "lifetime" ? "Lifetime" : `${c.trialDays ?? "?"} days`}
-                      </span>
-                      {!c.isActive && (
-                        <span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 99, background: "#fee2e2", color: "#991b1b", fontWeight: 600 }}>Inactive</span>
-                      )}
-                    </div>
-                    <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 2px" }}>{c.purpose}</p>
-                    {c.expiresAt && (
-                      <p style={{ fontSize: 11, color: "#9ca3af", margin: 0 }}>
-                        Expires {new Date(c.expiresAt._seconds * 1000).toLocaleDateString()}
-                      </p>
-                    )}
-                  </div>
-                  <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>
-                      {c.currentUses}{c.maxUses !== null ? ` / ${c.maxUses}` : ""} used
-                    </span>
-                  </div>
+                        return (
+                          <tr key={u.uid} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                            <td style={{ padding: "9px 10px", color: "#111827" }}>{u.email ?? "—"}</td>
+                            <td style={{ padding: "9px 10px", color: "#374151" }}>{u.displayName ?? "—"}</td>
+                            <td style={{ padding: "9px 10px" }}>
+                              <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 99, fontWeight: 600, background: statusColor.bg, color: statusColor.text }}>
+                                {status}
+                              </span>
+                            </td>
+                            <td style={{ padding: "9px 10px", color: "#6b7280", whiteSpace: "nowrap" }}>
+                              {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "—"}
+                            </td>
+                            <td style={{ padding: "9px 10px", color: "#6b7280" }}>{u.accessGrantedVia ?? "—"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-              ))}
+              )}
             </div>
-          )}
-        </div>
+          </>
+        )}
 
       </div>
     </div>
