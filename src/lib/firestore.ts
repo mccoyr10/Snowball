@@ -32,7 +32,6 @@ export async function createUserDoc(
     email,
     displayName,
     householdId,
-    subscriptionStatus: "incomplete",
     createdAt: serverTimestamp(),
   });
 }
