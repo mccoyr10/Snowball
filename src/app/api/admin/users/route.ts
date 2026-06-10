@@ -1,4 +1,4 @@
-import { getAdminDb } from "@/lib/firebase-admin";
+import { getAdminDb, getAdminAuth } from "@/lib/firebase-admin";
 import { Timestamp } from "firebase-admin/firestore";
 
 export async function GET(request: Request) {
@@ -62,4 +62,36 @@ export async function GET(request: Request) {
     },
     users,
   });
+}
+
+export async function DELETE(request: Request) {
+  const adminKey = process.env.ADMIN_API_KEY;
+  if (!adminKey) return Response.json({ error: "Admin API not configured." }, { status: 503 });
+  if (request.headers.get("Authorization") !== `Bearer ${adminKey}`) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { uid } = await request.json() as { uid?: string };
+  if (!uid) return Response.json({ error: "uid is required." }, { status: 400 });
+
+  const db = getAdminDb();
+  const auth = getAdminAuth();
+
+  // Delete subcollections
+  for (const sub of ["advisorMemory", "advisorChallenge", "shareCard"]) {
+    const subSnap = await db.collection(`users/${uid}/${sub}`).get();
+    await Promise.all(subSnap.docs.map((d) => d.ref.delete()));
+  }
+
+  // Delete user doc
+  await db.doc(`users/${uid}`).delete();
+
+  // Delete Firebase Auth account
+  try {
+    await auth.deleteUser(uid);
+  } catch {
+    // User may not exist in Auth (e.g. already deleted) — not fatal
+  }
+
+  return Response.json({ success: true });
 }

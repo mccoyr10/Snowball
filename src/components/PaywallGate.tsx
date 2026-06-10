@@ -23,7 +23,6 @@ export function isAccessAllowed(
   extendedTrialEndsAt?: Timestamp
 ): boolean {
   if (lifetimeAccess) return true;
-  if (!status) return true;
   if (status === "active") return true;
   if (status === "trialing") return getTrialDaysRemaining(trialStartedAt) > 0;
   if (extendedTrialEndsAt) return extendedTrialEndsAt.toDate() > new Date();

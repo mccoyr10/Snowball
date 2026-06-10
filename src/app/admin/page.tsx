@@ -60,6 +60,8 @@ export default function AdminPage() {
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [deletingUid, setDeletingUid] = useState<string | null>(null);
+  const [confirmUid, setConfirmUid] = useState<string | null>(null);
 
   const fetchCodes = useCallback(async (key: string) => {
     setLoadingCodes(true);
@@ -99,6 +101,22 @@ export default function AdminPage() {
       setLoadingUsers(false);
     }
   }, []);
+
+  async function handleDeleteUser(uid: string) {
+    setDeletingUid(uid);
+    try {
+      await fetch("/api/admin/users", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminKey}` },
+        body: JSON.stringify({ uid }),
+      });
+      setUsers(u => u.filter(x => x.uid !== uid));
+      setUserStats(s => s ? { ...s, total: s.total - 1 } : s);
+    } finally {
+      setDeletingUid(null);
+      setConfirmUid(null);
+    }
+  }
 
   async function handleUnlock(e: React.FormEvent) {
     e.preventDefault();
@@ -339,8 +357,8 @@ export default function AdminPage() {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                     <thead>
                       <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
-                        {["Email", "Name", "Status", "Signed up", "Access via"].map(h => (
-                          <th key={h} style={{ textAlign: "left", padding: "6px 10px", fontWeight: 600, color: "#6b7280", whiteSpace: "nowrap" }}>{h}</th>
+                        {["Email", "Name", "Status", "Signed up", "Access via", ""].map((h, i) => (
+                          <th key={i} style={{ textAlign: "left", padding: "6px 10px", fontWeight: 600, color: "#6b7280", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -368,6 +386,32 @@ export default function AdminPage() {
                               {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "—"}
                             </td>
                             <td style={{ padding: "9px 10px", color: "#6b7280" }}>{u.accessGrantedVia ?? "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "right" }}>
+                              {confirmUid === u.uid ? (
+                                <span style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                                  <button
+                                    onClick={() => handleDeleteUser(u.uid)}
+                                    disabled={deletingUid === u.uid}
+                                    style={{ fontSize: 12, padding: "3px 10px", borderRadius: 6, background: "#dc2626", color: "#fff", border: "none", cursor: "pointer", fontWeight: 600 }}
+                                  >
+                                    {deletingUid === u.uid ? "…" : "Confirm"}
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmUid(null)}
+                                    style={{ fontSize: 12, padding: "3px 10px", borderRadius: 6, background: "#e5e7eb", color: "#374151", border: "none", cursor: "pointer" }}
+                                  >
+                                    Cancel
+                                  </button>
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => setConfirmUid(u.uid)}
+                                  style={{ fontSize: 12, padding: "3px 10px", borderRadius: 6, background: "none", color: "#9ca3af", border: "1px solid #e5e7eb", cursor: "pointer" }}
+                                >
+                                  Delete
+                                </button>
+                              )}
+                            </td>
                           </tr>
                         );
                       })}
