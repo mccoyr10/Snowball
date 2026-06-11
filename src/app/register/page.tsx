@@ -70,6 +70,9 @@ export default function RegisterPage() {
     try {
       await signUp(email, password, name);
       subscribeEmail(email, name);
+      if (typeof window !== "undefined" && typeof (window as any).fbq === "function") {
+        (window as any).fbq("track", "CompleteRegistration");
+      }
       router.replace("/dashboard");
     } catch (err) {
       if (err instanceof FirebaseError) setError(friendlyError(err.code));
@@ -86,6 +89,9 @@ export default function RegisterPage() {
       const { auth } = await import("@/lib/firebase");
       const u = auth.currentUser;
       if (u?.email) subscribeEmail(u.email, u.displayName ?? undefined);
+      if (typeof window !== "undefined" && typeof (window as any).fbq === "function") {
+        (window as any).fbq("track", "CompleteRegistration");
+      }
       router.replace("/dashboard");
     } catch (err) {
       if (err instanceof FirebaseError) setError(friendlyError(err.code));
