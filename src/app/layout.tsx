@@ -40,6 +40,18 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600;700&display=swap"
           rel="stylesheet"
         />
+      </head>
+      <body>
+        <noscript>
+          <img
+            height="1"
+            width="1"
+            style={{ display: "none" }}
+            src="https://www.facebook.com/tr?id=1504285557910650&ev=PageView&noscript=1"
+            alt=""
+          />
+        </noscript>
+        <AuthProvider>{children}</AuthProvider>
         <Script
           id="meta-pixel"
           strategy="afterInteractive"
@@ -58,18 +70,6 @@ export default function RootLayout({
             `,
           }}
         />
-        <noscript>
-          <img
-            height="1"
-            width="1"
-            style={{ display: "none" }}
-            src="https://www.facebook.com/tr?id=1504285557910650&ev=PageView&noscript=1"
-            alt=""
-          />
-        </noscript>
-      </head>
-      <body>
-        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );
