@@ -102,13 +102,14 @@ function BurndownChart({ schedule, height = 200 }: { schedule: ScheduleEntry[]; 
 
 interface DashboardTabProps {
   debts: UIDebt[];
+  rawDebts?: UIDebt[];
   settings: UISettings;
   summary: Summary;
   schedule: ScheduleEntry[];
   setActiveTab: (tab: string) => void;
 }
 
-export default function DashboardTab({ debts, settings, summary, schedule, setActiveTab }: DashboardTabProps) {
+export default function DashboardTab({ debts, rawDebts, settings, summary, schedule, setActiveTab }: DashboardTabProps) {
   const { userDoc } = useAuth();
   const firstName = userDoc?.displayName?.split(" ")[0] || "there";
   if (debts.length === 0) {
@@ -139,8 +140,14 @@ export default function DashboardTab({ debts, settings, summary, schedule, setAc
   const target = sorted[0];
   const upNext = sorted.slice(1);
 
+  // Use the user-entered balance for display so it matches the Edit Debt screen.
+  // adjustedDebts (used for schedule math) can diverge when actuals are logged on top
+  // of a manually-updated current balance, causing double-counting in the simulation.
+  const rawTarget = rawDebts?.find(d => d.id === target.id);
+  const displayBalance = rawTarget?.balance ?? target.balance;
+
   const paidPct = target.startingBalance && target.startingBalance > 0
-    ? Math.max(0, Math.min(100, Math.round((1 - target.balance / target.startingBalance) * 100)))
+    ? Math.max(0, Math.min(100, Math.round((1 - displayBalance / target.startingBalance) * 100)))
     : 0;
 
   const targetPayoff = summary.debtPayoffDates[target.id];
@@ -270,7 +277,7 @@ export default function DashboardTab({ debts, settings, summary, schedule, setAc
             fontVariantNumeric: "tabular-nums", color: "var(--ink)",
             marginTop: 12, lineHeight: 1,
           }}>
-            {formatCurrency(target.balance).replace(/\.00$/, "")}
+            {formatCurrency(displayBalance).replace(/\.00$/, "")}
             <span style={{ fontSize: 16, color: "var(--ink-muted)", fontWeight: 400, marginLeft: 8 }}>
               to go
             </span>

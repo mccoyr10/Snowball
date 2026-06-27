@@ -428,7 +428,7 @@ export default function SnowballApp() {
   );
 
   const tabs: Record<string, React.ReactNode> = {
-    dashboard: <DashboardTab debts={adjustedDebts} settings={settings} summary={summary} schedule={schedule} setActiveTab={setActiveTab} />,
+    dashboard: <DashboardTab debts={adjustedDebts} rawDebts={debts} settings={settings} summary={summary} schedule={schedule} setActiveTab={setActiveTab} />,
     debts: (
       <DebtList
         debts={debts}
