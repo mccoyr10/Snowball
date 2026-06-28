@@ -12,7 +12,7 @@ import {
   setStrategy, addPayment, updatePayment, deletePayment,
 } from "@/lib/firestore";
 import {
-  buildSnowballSchedule, computeActualAdjustedDebts, calculateSummary,
+  buildSnowballSchedule, calculateSummary,
   allocatePaymentsToDebts, todayYYYYMM,
   type UIDebt, type UISettings,
 } from "@/lib/snowball";
@@ -325,11 +325,14 @@ export default function SnowballApp() {
   }, [householdId, loading, firestoreDebts.length]);
 
   const debts = firestoreDebts.map(toUIDebt);
-  const prelimSchedule = buildSnowballSchedule(debts, settings);
-  const allocatedActuals = allocatePaymentsToDebts(payments, prelimSchedule, debts);
-  const { adjustedDebts } = computeActualAdjustedDebts(debts, prelimSchedule, allocatedActuals);
-  const schedule = buildSnowballSchedule(adjustedDebts, settings);
-  const summary = calculateSummary(adjustedDebts, schedule, settings);
+  // Projections anchor on the user-entered current balance — their lender statement
+  // is the source of truth. Logged payments remain a historical record (and feed the
+  // "extra paid" KPIs and the allocation breakdown), but we no longer replay
+  // assumed-paid months on top of the entered balance: doing so double-counted
+  // planned payments and drifted away from the real account over time.
+  const schedule = buildSnowballSchedule(debts, settings);
+  const allocatedActuals = allocatePaymentsToDebts(payments, schedule, debts);
+  const summary = calculateSummary(debts, schedule, settings);
 
   async function handleSaveDebt(debt: UIDebt) {
     if (!householdId) return;
@@ -428,7 +431,7 @@ export default function SnowballApp() {
   );
 
   const tabs: Record<string, React.ReactNode> = {
-    dashboard: <DashboardTab debts={adjustedDebts} rawDebts={debts} settings={settings} summary={summary} schedule={schedule} setActiveTab={setActiveTab} />,
+    dashboard: <DashboardTab debts={debts} settings={settings} summary={summary} schedule={schedule} setActiveTab={setActiveTab} />,
     debts: (
       <DebtList
         debts={debts}
@@ -441,11 +444,11 @@ export default function SnowballApp() {
         onDelete={handleDeleteDebt}
       />
     ),
-    schedule: <PayoffSchedule debts={adjustedDebts} schedule={schedule} onGoToDebts={() => setActiveTab("debts")} />,
+    schedule: <PayoffSchedule debts={debts} schedule={schedule} onGoToDebts={() => setActiveTab("debts")} />,
     actuals: (
       <ActualPayments
         debts={debts}
-        schedule={prelimSchedule}
+        schedule={schedule}
         payments={payments}
         allocatedActuals={allocatedActuals}
         onAddPayment={handleAddPayment}
@@ -456,7 +459,7 @@ export default function SnowballApp() {
       />
     ),
     advisor: advisorUnlocked
-      ? <ChatPanel debts={adjustedDebts} settings={settings} summary={summary} />
+      ? <ChatPanel debts={debts} settings={settings} summary={summary} />
       : <AdvisorPaywall />,
   };
 
