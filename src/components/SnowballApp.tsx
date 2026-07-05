@@ -13,7 +13,7 @@ import {
 } from "@/lib/firestore";
 import {
   buildSnowballSchedule, calculateSummary,
-  allocateToBalances, r2, todayYYYYMM,
+  allocateToBalances, r2, todayYYYYMM, projectionStart,
   type UIDebt, type UISettings, type UIActual,
 } from "@/lib/snowball";
 import type { Debt } from "@/types";
@@ -329,8 +329,16 @@ export default function SnowballApp() {
   // balance (see handleAddPayment), so `debts` is always the current balance and is
   // the single source of truth for the dashboard, debt list, and projections. The
   // payment's recorded per-debt split drives the "how it was applied" breakdown.
-  const schedule = buildSnowballSchedule(debts, settings);
-  const summary = calculateSummary(debts, schedule, settings);
+  //
+  // Project forward from the current month (never a stale, past plan start date),
+  // since the balances above are current as of today. Keep the stored `settings`
+  // for editing/history; use `projSettings` for anything that builds a schedule.
+  const projSettings: UISettings = {
+    ...settings,
+    startDate: projectionStart(settings.startDate, todayYYYYMM()),
+  };
+  const schedule = buildSnowballSchedule(debts, projSettings);
+  const summary = calculateSummary(debts, schedule, projSettings);
   const allocatedActuals: UIActual[] = payments.flatMap(p => {
     const alloc = p.allocations;
     if (!alloc) return [];
@@ -465,7 +473,7 @@ export default function SnowballApp() {
   );
 
   const tabs: Record<string, React.ReactNode> = {
-    dashboard: <DashboardTab debts={debts} settings={settings} summary={summary} schedule={schedule} setActiveTab={setActiveTab} />,
+    dashboard: <DashboardTab debts={debts} settings={projSettings} summary={summary} schedule={schedule} setActiveTab={setActiveTab} />,
     debts: (
       <DebtList
         debts={debts}
