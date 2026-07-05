@@ -11,6 +11,8 @@ import {
   serverTimestamp,
   query,
   orderBy,
+  writeBatch,
+  increment,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { UserDoc, Household, Debt, Strategy, Actual, Payment, LegacyData } from "@/types";
@@ -178,29 +180,65 @@ export function subscribePayments(
   });
 }
 
+// Logs a payment and applies its per-debt allocation to the stored debt balances
+// in a single atomic batch, so the debt balances and the payment record can never
+// drift out of sync.
 export async function addPayment(
   householdId: string,
   month: string,
-  amount: number
-): Promise<string> {
-  const ref = await addDoc(collection(db, "households", householdId, "payments"), {
-    month,
-    amount,
-    createdAt: serverTimestamp(),
-  });
-  return ref.id;
+  amount: number,
+  allocations: Record<string, number>
+): Promise<void> {
+  const batch = writeBatch(db);
+  const payRef = doc(collection(db, "households", householdId, "payments"));
+  batch.set(payRef, { month, amount, allocations, createdAt: serverTimestamp() });
+  for (const [debtId, alloc] of Object.entries(allocations)) {
+    if (alloc > 0) {
+      batch.update(doc(db, "households", householdId, "debts", debtId), {
+        balance: increment(-alloc),
+      });
+    }
+  }
+  await batch.commit();
 }
 
+// Updates a payment's amount and re-applies the balance delta for each debt
+// (debtId -> net change to add to the stored balance) atomically.
 export async function updatePayment(
   householdId: string,
   id: string,
-  amount: number
+  amount: number,
+  allocations: Record<string, number>,
+  balanceDeltas: Record<string, number>
 ): Promise<void> {
-  await updateDoc(doc(db, "households", householdId, "payments", id), { amount });
+  const batch = writeBatch(db);
+  batch.update(doc(db, "households", householdId, "payments", id), { amount, allocations });
+  for (const [debtId, delta] of Object.entries(balanceDeltas)) {
+    if (delta !== 0) {
+      batch.update(doc(db, "households", householdId, "debts", debtId), {
+        balance: increment(delta),
+      });
+    }
+  }
+  await batch.commit();
 }
 
-export async function deletePayment(householdId: string, id: string): Promise<void> {
-  await deleteDoc(doc(db, "households", householdId, "payments", id));
+// Deletes a payment and restores its allocation back onto the debt balances.
+export async function deletePayment(
+  householdId: string,
+  id: string,
+  reversal: Record<string, number>
+): Promise<void> {
+  const batch = writeBatch(db);
+  batch.delete(doc(db, "households", householdId, "payments", id));
+  for (const [debtId, alloc] of Object.entries(reversal)) {
+    if (alloc > 0) {
+      batch.update(doc(db, "households", householdId, "debts", debtId), {
+        balance: increment(alloc),
+      });
+    }
+  }
+  await batch.commit();
 }
 
 // ─── Household invite / join ──────────────────────────────────────────────────

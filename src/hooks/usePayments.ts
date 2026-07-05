@@ -16,6 +16,7 @@ export function usePayments(householdId: string | null) {
           id: p.id,
           month: p.month,
           amount: p.amount,
+          allocations: p.allocations,
         }))
       );
       setLoading(false);

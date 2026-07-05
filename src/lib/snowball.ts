@@ -25,6 +25,9 @@ export interface UIPayment {
   id: string;
   month: string;
   amount: number;
+  // Per-debt split of this payment (debtId -> amount), recorded when the payment
+  // was logged so it can be reversed exactly on edit/delete.
+  allocations?: Record<string, number>;
 }
 
 export interface DebtSnapshot {
@@ -208,6 +211,30 @@ export function allocatePaymentsToDebts(
     }
   }
 
+  return result;
+}
+
+// Splits a payment across debts in snowball order (smallest balance first), each
+// debt absorbing up to its current balance. Returns a debtId -> amount map whose
+// values sum to at most `amount` (any overpayment beyond total debt is dropped).
+// Used to apply a logged payment directly to the stored balances (running ledger).
+export function allocateToBalances(
+  amount: number,
+  debts: { id: string; balance: number }[],
+): Record<string, number> {
+  const result: Record<string, number> = {};
+  let remaining = r2(amount);
+  const sorted = [...debts]
+    .filter(d => Number(d.balance) > 0)
+    .sort((a, b) => Number(a.balance) - Number(b.balance));
+  for (const d of sorted) {
+    if (remaining <= 0) break;
+    const alloc = r2(Math.min(remaining, Number(d.balance)));
+    if (alloc > 0) {
+      result[d.id] = alloc;
+      remaining = r2(remaining - alloc);
+    }
+  }
   return result;
 }
 
