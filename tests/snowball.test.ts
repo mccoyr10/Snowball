@@ -13,6 +13,7 @@ import {
   calculateSummary,
   allocatePaymentsToDebts,
   allocateToBalances,
+  projectionStart,
   type UIDebt,
   type UISettings,
 } from "../src/lib/snowball.ts";
@@ -40,6 +41,18 @@ test("isValidYYYYMM validates format", () => {
   assert.equal(isValidYYYYMM("June"), false);
   assert.equal(isValidYYYYMM(202606), false);
   assert.equal(isValidYYYYMM(null), false);
+});
+
+test("projectionStart never begins before the current month", () => {
+  // A stale plan start date in the past is pulled forward to the current month,
+  // so projecting current balances doesn't credit already-elapsed months.
+  assert.equal(projectionStart("2026-01", "2026-07"), "2026-07");
+  // A future start date (plan hasn't begun) is honored.
+  assert.equal(projectionStart("2026-09", "2026-07"), "2026-09");
+  // Same month or missing/invalid falls back to the current month.
+  assert.equal(projectionStart("2026-07", "2026-07"), "2026-07");
+  assert.equal(projectionStart(undefined, "2026-07"), "2026-07");
+  assert.equal(projectionStart("garbage", "2026-07"), "2026-07");
 });
 
 // ── buildSnowballSchedule ─────────────────────────────────────────────────────
@@ -93,6 +106,30 @@ test("snowball targets the lowest balance and applies extra to it first", () => 
   assert.equal(small.closingBalance, 50);
   assert.equal(big.payment, 50);
   assert.equal(big.closingBalance, 950);
+});
+
+test("projecting current balances anchors payoff to the current month, not a stale start", () => {
+  const debts: UIDebt[] = [
+    { id: "truck", name: "Truck", balance: 21805, apr: 9.19, minPayment: 706.77, startingBalance: 43500 },
+  ];
+  const currentMonth = "2026-07";
+  // A large extra payment pays the truck off in a handful of months.
+  const budget = 706.77 + 6000;
+
+  // Buggy behavior: starting from a stale plan start date credits elapsed months,
+  // so the payoff lands in the past/near-present.
+  const stale = buildSnowballSchedule(debts, { monthlyBudget: budget, startDate: "2026-01" });
+  const staleSummary = calculateSummary(debts, stale, { monthlyBudget: budget, startDate: "2026-01" });
+
+  // Fixed behavior: projection begins at the current month.
+  const start = projectionStart("2026-01", currentMonth);
+  const fixed = buildSnowballSchedule(debts, { monthlyBudget: budget, startDate: start });
+  const fixedSummary = calculateSummary(debts, fixed, { monthlyBudget: budget, startDate: start });
+
+  // Same number of months to pay off, but anchored differently.
+  assert.equal(stale.length, fixed.length);
+  assert.ok(staleSummary.debtPayoffDates["truck"] < currentMonth); // absurd: already paid off
+  assert.ok(fixedSummary.debtPayoffDates["truck"] >= currentMonth); // sensible: in the future
 });
 
 // ── calculateSummary ──────────────────────────────────────────────────────────

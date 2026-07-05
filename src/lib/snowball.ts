@@ -97,6 +97,15 @@ export function isValidYYYYMM(s: unknown): s is string {
   return typeof s === "string" && /^\d{4}-\d{2}$/.test(s);
 }
 
+// Balances are tracked as of "today", so any forward projection must begin no
+// earlier than the current month. Starting from a stale plan start date (months in
+// the past) would credit already-elapsed months and make payoff dates land far too
+// early. A future start date (a plan that hasn't begun yet) is honored as-is.
+export function projectionStart(startDate: string | undefined, currentMonth: string): string {
+  if (!isValidYYYYMM(startDate)) return currentMonth;
+  return startDate < currentMonth ? currentMonth : startDate;
+}
+
 // ── Core Algorithm ─────────────────────────────────────────────────────────────
 
 // monthlyOverrides: extra amounts on top of base budget for specific months, keyed by YYYY-MM
