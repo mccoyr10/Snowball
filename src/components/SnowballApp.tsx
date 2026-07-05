@@ -13,8 +13,8 @@ import {
 } from "@/lib/firestore";
 import {
   buildSnowballSchedule, calculateSummary,
-  allocatePaymentsToDebts, todayYYYYMM,
-  type UIDebt, type UISettings,
+  allocateToBalances, r2, todayYYYYMM,
+  type UIDebt, type UISettings, type UIActual,
 } from "@/lib/snowball";
 import type { Debt } from "@/types";
 
@@ -325,14 +325,19 @@ export default function SnowballApp() {
   }, [householdId, loading, firestoreDebts.length]);
 
   const debts = firestoreDebts.map(toUIDebt);
-  // Projections anchor on the user-entered current balance — their lender statement
-  // is the source of truth. Logged payments remain a historical record (and feed the
-  // "extra paid" KPIs and the allocation breakdown), but we no longer replay
-  // assumed-paid months on top of the entered balance: doing so double-counted
-  // planned payments and drifted away from the real account over time.
+  // Running-ledger model: a logged payment immediately reduces the stored debt
+  // balance (see handleAddPayment), so `debts` is always the current balance and is
+  // the single source of truth for the dashboard, debt list, and projections. The
+  // payment's recorded per-debt split drives the "how it was applied" breakdown.
   const schedule = buildSnowballSchedule(debts, settings);
-  const allocatedActuals = allocatePaymentsToDebts(payments, schedule, debts);
   const summary = calculateSummary(debts, schedule, settings);
+  const allocatedActuals: UIActual[] = payments.flatMap(p => {
+    const alloc = p.allocations;
+    if (!alloc) return [];
+    return Object.entries(alloc).map(([debtId, amount]) => ({
+      id: `${p.id}_${debtId}`, month: p.month, debtId, amount,
+    }));
+  });
 
   async function handleSaveDebt(debt: UIDebt) {
     if (!householdId) return;
@@ -383,17 +388,37 @@ export default function SnowballApp() {
 
   async function handleAddPayment(month: string, amount: number) {
     if (!householdId || amount <= 0) return;
+    // Split the payment across debts (smallest first) and apply it to their balances.
+    const allocations = allocateToBalances(amount, debts);
+    if (Object.keys(allocations).length === 0) {
+      addToast("No open balance to apply this payment to", "error");
+      return;
+    }
     try {
-      await addPayment(householdId, month, amount);
+      await addPayment(householdId, month, amount, allocations);
     } catch {
       addToast("Failed to save payment", "error");
     }
   }
 
   async function handleUpdatePayment(id: string, amount: number) {
-    if (!householdId) return;
+    if (!householdId || amount <= 0) return;
+    const payment = payments.find(p => p.id === id);
+    if (!payment) return;
+    const oldAlloc: Record<string, number> = payment.allocations ?? {};
+    // Re-split over the balances as they were *before* this payment (current balance
+    // plus what this payment had removed), then apply the net delta to each debt.
+    const preBalances = debts.map(d => ({ id: d.id, balance: r2(d.balance + (oldAlloc[d.id] ?? 0)) }));
+    const newAlloc = allocateToBalances(amount, preBalances);
+    const balanceDeltas: Record<string, number> = {};
+    const affected = new Set([...Object.keys(oldAlloc), ...Object.keys(newAlloc)]);
+    for (const debtId of affected) {
+      if (!debts.some(d => d.id === debtId)) continue; // debt was deleted — skip
+      const delta = r2((oldAlloc[debtId] ?? 0) - (newAlloc[debtId] ?? 0));
+      if (delta !== 0) balanceDeltas[debtId] = delta;
+    }
     try {
-      await updatePayment(householdId, id, amount);
+      await updatePayment(householdId, id, amount, newAlloc, balanceDeltas);
     } catch {
       addToast("Failed to update payment", "error");
     }
@@ -401,8 +426,17 @@ export default function SnowballApp() {
 
   async function handleDeletePayment(id: string) {
     if (!householdId) return;
+    const payment = payments.find(p => p.id === id);
+    // Only restore balances for debts that still exist.
+    const reversal: Record<string, number> = {};
+    const alloc = payment?.allocations;
+    if (alloc) {
+      for (const [debtId, amt] of Object.entries(alloc) as [string, number][]) {
+        if (debts.some(d => d.id === debtId)) reversal[debtId] = amt;
+      }
+    }
     try {
-      await deletePayment(householdId, id);
+      await deletePayment(householdId, id, reversal);
     } catch {
       addToast("Failed to delete payment", "error");
     }

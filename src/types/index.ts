@@ -64,6 +64,8 @@ export interface Payment {
   id: string;
   month: string;
   amount: number;
+  // Per-debt split applied to balances when this payment was logged (debtId -> amount).
+  allocations?: Record<string, number>;
   createdAt: Timestamp;
 }
 

@@ -12,6 +12,7 @@ import {
   buildSnowballSchedule,
   calculateSummary,
   allocatePaymentsToDebts,
+  allocateToBalances,
   type UIDebt,
   type UISettings,
 } from "../src/lib/snowball.ts";
@@ -142,4 +143,42 @@ test("no payments produces no allocations", () => {
   ];
   const sched = buildSnowballSchedule(debts, settings());
   assert.deepEqual(allocatePaymentsToDebts([], sched, debts), []);
+});
+
+// ── allocateToBalances (running-ledger payment split) ─────────────────────────
+
+test("allocateToBalances fills the smallest balance first", () => {
+  const debts = [
+    { id: "big", balance: 1000 },
+    { id: "small", balance: 200 },
+  ];
+  assert.deepEqual(allocateToBalances(150, debts), { small: 150 });
+});
+
+test("allocateToBalances spills into the next debt once the smallest is cleared", () => {
+  const debts = [
+    { id: "small", balance: 200 },
+    { id: "big", balance: 1000 },
+  ];
+  // 200 clears "small" exactly, remaining 50 lands on "big"
+  assert.deepEqual(allocateToBalances(250, debts), { small: 200, big: 50 });
+});
+
+test("allocateToBalances never allocates more than the total owed", () => {
+  const debts = [
+    { id: "a", balance: 100 },
+    { id: "b", balance: 50 },
+  ];
+  const alloc = allocateToBalances(500, debts);
+  assert.deepEqual(alloc, { a: 100, b: 50 });
+  const total = Object.values(alloc).reduce((s, x) => s + x, 0);
+  assert.equal(total, 150); // overpayment beyond total debt is dropped
+});
+
+test("allocateToBalances ignores debts that are already paid off", () => {
+  const debts = [
+    { id: "paid", balance: 0 },
+    { id: "open", balance: 300 },
+  ];
+  assert.deepEqual(allocateToBalances(100, debts), { open: 100 });
 });
